@@ -1,0 +1,296 @@
+import { useEffect, useState, ChangeEvent, FormEvent } from 'react';
+import { useAppwrite } from '@/contexts/AppwriteContext';
+import { Settings } from '@/types';
+
+import {
+    Card,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardContent,
+    CardFooter,
+} from '@/components/ui/card';
+import {
+    Form,
+    FormItem,
+    FormLabel,
+    FormControl,
+    FormField,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { FieldValues, useForm } from 'react-hook-form';
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import Image from 'next/image';
+import { useSettings } from '@/contexts/SettingsContext';
+
+
+const BUCKET_ID = '682a2e12000f6d95161f';
+const DOC_ID = '682a40a9003c3a60b1bb';
+
+export default function SettingsForm() {
+    const { databases, storage, APPWRITE_ID } = useAppwrite();
+    const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!;
+    const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
+
+
+    const [isNewDoc, setIsNewDoc] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
+    const [logoUrl, setlogoUrl] = useState<string | null>(null)
+    const { updateSettings, settings } = useSettings();
+
+    const settingsFormSchema = z.object({
+        companyName: z.string(),
+        address: z.string(),
+        phone: z.string(),
+        email: z.string().email(),
+        logo: z.instanceof(File).optional()
+
+    });
+    const form = useForm<z.infer<typeof settingsFormSchema>>({
+        resolver: zodResolver(settingsFormSchema),
+        defaultValues: {
+            companyName: '',
+            address: '',
+            phone: '',
+            email: ''
+        }
+    });
+
+    // Load existing settings
+    useEffect(() => {
+        if (settings) {
+            form.setValue('companyName', settings.companyName)
+            form.setValue('address', settings.address)
+            form.setValue('phone', settings.phone)
+            form.setValue('email', settings.email)
+            setlogoUrl(settings.logoUrl)
+            setIsNewDoc(false);
+        }
+
+        /* databases
+            .getDocument('682a282500354df6c3a7', '682a28440038cc7ba928', DOC_ID)
+            .then(({ companyName, address, phone, email, logoUrl }) => {
+
+                updateSettings({
+                    companyName,
+                    address,
+                    phone,
+                    email,
+                    logoUrl
+                })
+                
+                
+                setlogoUrl(logoUrl)
+                setIsNewDoc(false);
+            })
+            .catch(() => {
+                setIsNewDoc(true);
+            }); */
+    }, [settings]);
+
+
+
+    async function onSave(data: z.infer<typeof settingsFormSchema>) {
+
+        const { address, companyName, phone, email, logo } = data;
+
+        setLoading(true);
+        setError(null);
+        setSuccess(false);
+
+        try {
+            let url = ''
+
+            if (!logoUrl && logo) {
+                const fileId = APPWRITE_ID.unique();
+                const fileDoc = await storage.createFile(
+                    BUCKET_ID,
+                    fileId,
+                    logo
+                );
+                url = `${endpoint}/storage/buckets/${BUCKET_ID}/files/${fileId}/view?project=${projectId}`;
+                setlogoUrl(url)
+            }
+
+
+
+            const payload: Settings = {
+                companyName,
+                address,
+                phone,
+                email,
+                logoUrl: logoUrl ? logoUrl : url
+
+            };
+
+
+
+            if (isNewDoc) {
+                await databases.createDocument(
+                    '682a282500354df6c3a7',
+                    '682a28440038cc7ba928',
+                    DOC_ID,
+                    payload
+                );
+                setIsNewDoc(false);
+            } else {
+                await databases.updateDocument(
+                    '682a282500354df6c3a7',
+                    '682a28440038cc7ba928',
+                    DOC_ID,
+                    payload
+                );
+            }
+
+            setSuccess(true);
+            updateSettings(payload)
+
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message || 'Failed to save settings');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSave)}>
+                <Card className="max-w-2xl mx-auto">
+                    <CardHeader>
+                        <CardTitle>App Settings</CardTitle>
+                        <CardDescription>
+                            Customize your company details and logo.
+                        </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="space-y-6">
+                        {error && (
+                            <Alert variant="destructive">
+                                <AlertTitle>Error</AlertTitle>
+                                <AlertDescription>{error}</AlertDescription>
+                            </Alert>
+                        )}
+                        {success && (
+                            <Alert>
+                                <AlertDescription>Settings saved!</AlertDescription>
+                            </Alert>
+                        )}
+                        <FormField
+                            control={form.control}
+                            name="companyName"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Company Name</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            placeholder="Your Company name"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="address"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Company Address</FormLabel>
+                                    <FormControl>
+                                        <Textarea
+                                            placeholder="Company's registered address"
+                                            rows={3}
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                </FormItem>
+                            )}
+                        />
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="phone"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Phone</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="tel"
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="email"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Email</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                            />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        <FormField
+                            control={form.control}
+                            name="logo"
+                            render={({ field: { value, onChange, ...fieldProps } }) => (
+                                <FormItem>
+                                    <FormLabel>Company Logo</FormLabel>
+                                    <div className="flex items-center space-x-4">
+                                        {logoUrl && (
+                                            <>
+                                                <Image
+                                                    src={logoUrl}
+                                                    alt="Company Logo"
+                                                    width={100}
+                                                    height={100}
+                                                    className="object-contain"
+                                                />
+
+                                            </>
+
+                                        )}
+                                        <FormControl>
+                                            <Input
+                                                type="file"
+                                                accept="image/*"
+                                                {...fieldProps}
+                                                onChange={(event) => {
+                                                    onChange(event.target?.files?.[0] ?? undefined);
+                                                }}
+                                            />
+                                        </FormControl>
+                                    </div>
+                                </FormItem>
+                            )}
+                        />
+                    </CardContent>
+
+                    <CardFooter className="flex justify-end">
+                        <Button type="submit" disabled={loading}>
+                            {loading ? 'Saving…' : 'Save Settings'}
+                        </Button>
+                    </CardFooter>
+                </Card >
+            </form>
+        </Form>
+    );
+}
