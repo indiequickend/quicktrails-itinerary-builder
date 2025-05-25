@@ -27,7 +27,7 @@ const SettingsContext = createContext<SettingsContextValue>({
 });
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
-    const { databases } = useAppwrite();
+    const { databases, APPWRITE_DATABASE_ID } = useAppwrite();
     const [settings, setSettings] = useState<Settings | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setError(null);
         try {
             const doc = await databases.getDocument<Settings>(
-                "682a282500354df6c3a7",
+                APPWRITE_DATABASE_ID,
                 "682a28440038cc7ba928",
                 "682a40a9003c3a60b1bb"
             );

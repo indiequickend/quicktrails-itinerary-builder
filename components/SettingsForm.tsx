@@ -33,7 +33,7 @@ const BUCKET_ID = '682a2e12000f6d95161f';
 const DOC_ID = '682a40a9003c3a60b1bb';
 
 export default function SettingsForm() {
-    const { databases, storage, APPWRITE_ID } = useAppwrite();
+    const { databases, storage, APPWRITE_ID, APPWRITE_DATABASE_ID } = useAppwrite();
     const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!;
     const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
 
@@ -74,25 +74,7 @@ export default function SettingsForm() {
             setIsNewDoc(false);
         }
 
-        /* databases
-            .getDocument('682a282500354df6c3a7', '682a28440038cc7ba928', DOC_ID)
-            .then(({ companyName, address, phone, email, logoUrl }) => {
 
-                updateSettings({
-                    companyName,
-                    address,
-                    phone,
-                    email,
-                    logoUrl
-                })
-                
-                
-                setlogoUrl(logoUrl)
-                setIsNewDoc(false);
-            })
-            .catch(() => {
-                setIsNewDoc(true);
-            }); */
     }, [settings]);
 
 
@@ -134,7 +116,7 @@ export default function SettingsForm() {
 
             if (isNewDoc) {
                 await databases.createDocument(
-                    '682a282500354df6c3a7',
+                    APPWRITE_DATABASE_ID,
                     '682a28440038cc7ba928',
                     DOC_ID,
                     payload
@@ -142,7 +124,7 @@ export default function SettingsForm() {
                 setIsNewDoc(false);
             } else {
                 await databases.updateDocument(
-                    '682a282500354df6c3a7',
+                    APPWRITE_DATABASE_ID,
                     '682a28440038cc7ba928',
                     DOC_ID,
                     payload

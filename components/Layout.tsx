@@ -71,9 +71,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                         <Separator orientation="vertical" className="mr-2 h-4" />
                         <span className='font-bold text-lg'>Itinerary Builder</span>
                     </header>
-                    <main className="flex-1 p-6 bg-gray-50 min-h-screen">
+                    <div className="flex-1 p-6 bg-gray-50">
                         {children}
-                    </main>
+                    </div>
                 </SidebarInset>
             </SidebarProvider>
         </div>

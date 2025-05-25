@@ -1,5 +1,30 @@
 import { useEffect, useState, FormEvent } from 'react';
 import { useAppwrite } from '@/contexts/AppwriteContext';
+import { Hotel } from "@/types"
+import { columns } from "./columns"
+import { DataTable } from "./DataTable"
+
+
+export default function HotelsList() {
+    const { databases, APPWRITE_ID, APPWRITE_DATABASE_ID } = useAppwrite();
+    const [hotels, setHotels] = useState<Hotel[]>([]);
+    const col = '682a291600390adfbf80'; //hotels
+
+    const load = async () => {
+        const res = await databases.listDocuments(APPWRITE_DATABASE_ID, col);
+        setHotels(res.documents as Hotel[]);
+    };
+    useEffect(() => { load(); }, []);
+
+    return (
+        <div className="container mx-auto py-4">
+            <DataTable columns={columns} data={hotels} />
+        </div>
+    )
+}
+
+/* import { useEffect, useState, FormEvent } from 'react';
+import { useAppwrite } from '@/contexts/AppwriteContext';
 import { Hotel } from '@/types';
 
 export default function HotelsList() {
@@ -173,3 +198,4 @@ export default function HotelsList() {
         </div>
     );
 }
+ */
