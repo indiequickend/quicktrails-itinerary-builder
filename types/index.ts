@@ -14,16 +14,16 @@ export interface Hotel extends Models.Document {
     starRating?: number;
 }
 
-export interface Activity {
+export interface Activity extends Models.Document {
     name: string;
 }
 
-export interface Destination {
+export interface Destination extends Models.Document {
     name: string;
     activityIds: string[];
 }
 
-export interface PriceSegment {
+export interface PriceSegment extends Models.Document {
     name: string; // BUDGET, STANDARD, ...
 }
 
@@ -34,7 +34,7 @@ export interface ItineraryTemplate {
     priceSegmentIds: string[];
 }
 
-export interface Quotation {
+export interface Quotation extends Models.Document {
     itineraryId: string;
     priceSegmentId: string;
     startDate: string;

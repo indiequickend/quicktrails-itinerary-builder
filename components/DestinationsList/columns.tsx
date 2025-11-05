@@ -1,20 +1,17 @@
 "use client"
 
-import { Hotel } from "@/types"
+import { Destination, Activity } from "@/types"
 import { ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown, MoreHorizontal } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-// This type is used to define the shape of our data.
-// You can use a Zod schema here if you want.
-
-
-export const columns = (
+export const createColumns = (
     onEdit: (id: string) => void,
-    onDelete?: (id: string, type: string) => void // added optional onDelete
-): ColumnDef<Hotel>[] => [
+    activities: Activity[],
+    onDelete?: (id: string) => void // <-- added onDelete
+): ColumnDef<Destination>[] => [
         {
             accessorKey: "name",
             header: ({ column }) => {
@@ -30,55 +27,43 @@ export const columns = (
             },
         },
         {
-            accessorKey: "type",
-            header: ({ column }) => {
-                return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                    >
-                        Type
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                    </Button>
-                )
-            },
-            enableColumnFilter: true
-        },
-        {
-            accessorKey: "starRating",
-            header: "Star Rating",
+            accessorKey: "activityIds",
+            header: "Activities",
             cell: ({ row }) => {
-                const rating = row.getValue('starRating')
-                return rating ?? 'N/A'
-            }
+                const activityIds = row.getValue("activityIds") as string[]
+                return activityIds
+                    .map(id => activities.find(a => a.$id === id)?.name)
+                    .filter(Boolean)
+                    .join(', ') || 'None'
+            },
         },
         {
             id: "actions",
             cell: ({ row }) => {
-                const hotel = row.original
+                const destination = row.original
 
                 return (
                     <DropdownMenu>
                         <DropdownMenuTrigger className="h-8 w-8 p-0">
                             <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent >
+                        <DropdownMenuContent>
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                                onClick={() => onEdit(hotel.$id!)}
+                                onClick={() => onEdit(destination.$id!)}
                             >
-                                {`Edit ${hotel.type}`}
+                                Edit Destination
                             </DropdownMenuItem>
 
                             {onDelete && (
                                 <>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
-                                        className="text-destructive"
-                                        onClick={() => onDelete(hotel.$id!, hotel.type)}
+                                        className="text-red-600"
+                                        onClick={() => onDelete(destination.$id!)}
                                     >
-                                        {`Delete ${hotel.type}`}
+                                        Delete Destination
                                     </DropdownMenuItem>
                                 </>
                             )}
