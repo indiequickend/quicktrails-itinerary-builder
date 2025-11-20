@@ -27,6 +27,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Image from 'next/image';
 import { useSettings } from '@/contexts/SettingsContext';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
+
 
 
 const BUCKET_ID = '682a2e12000f6d95161f';
@@ -50,6 +53,9 @@ export default function SettingsForm() {
         address: z.string(),
         phone: z.string(),
         email: z.string().email(),
+        inclusionTemplateHtml: z.string().optional(),
+        exclusionTemplateHtml: z.string().optional(),
+        termsTemplateHtml: z.string().optional(),
         logo: z.instanceof(File).optional()
 
     });
@@ -59,7 +65,10 @@ export default function SettingsForm() {
             companyName: '',
             address: '',
             phone: '',
-            email: ''
+            email: '',
+            inclusionTemplateHtml: '',
+            exclusionTemplateHtml: '',
+            termsTemplateHtml: ''
         }
     });
 
@@ -70,6 +79,9 @@ export default function SettingsForm() {
             form.setValue('address', settings.address)
             form.setValue('phone', settings.phone)
             form.setValue('email', settings.email)
+            form.setValue('inclusionTemplateHtml', (settings as any).inclusionTemplateHtml || '');
+            form.setValue('exclusionTemplateHtml', (settings as any).exclusionTemplateHtml || '');
+            form.setValue('termsTemplateHtml', (settings as any).termsTemplateHtml || '');
             setlogoUrl(settings.logoUrl)
             setIsNewDoc(false);
         }
@@ -81,7 +93,7 @@ export default function SettingsForm() {
 
     async function onSave(data: z.infer<typeof settingsFormSchema>) {
 
-        const { address, companyName, phone, email, logo } = data;
+        const { address, companyName, phone, email, logo, inclusionTemplateHtml, exclusionTemplateHtml, termsTemplateHtml } = data;
 
         setLoading(true);
         setError(null);
@@ -108,7 +120,10 @@ export default function SettingsForm() {
                 address,
                 phone,
                 email,
-                logoUrl: logoUrl ? logoUrl : url
+                logoUrl: logoUrl ? logoUrl : url,
+                inclusionTemplateHtml: inclusionTemplateHtml || '',
+                exclusionTemplateHtml: exclusionTemplateHtml || '',
+                termsTemplateHtml: termsTemplateHtml || ''
 
             };
 
@@ -264,6 +279,60 @@ export default function SettingsForm() {
                                 </FormItem>
                             )}
                         />
+
+                        {/* Itinerary Templates */}
+                        <div className="border rounded-md p-3">
+                            <div className="mb-4">
+                                <div className="font-medium">Itinerary Templates</div>
+                                <div className="text-xs text-gray-500">These act as defaults for new itineraries. Changes here won’t affect existing itineraries.</div>
+                            </div>
+
+                            <FormField
+                                control={form.control}
+                                name="inclusionTemplateHtml"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <div className='mb-4'>
+                                            <FormLabel className='mb-2'>Inclusions Template</FormLabel>
+                                            <FormControl>
+                                                <ReactQuill theme="snow" {...field} />
+                                            </FormControl>
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="exclusionTemplateHtml"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <div className='mb-4'>
+                                            <FormLabel className='mb-2'>Exclusions Template</FormLabel>
+                                            <FormControl>
+                                                <ReactQuill theme="snow" {...field} />
+                                            </FormControl>
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="termsTemplateHtml"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <div className='mb-4'>
+                                            <FormLabel className='mb-2'>Terms & Conditions Template</FormLabel>
+                                            <FormControl>
+                                                <ReactQuill theme="snow" {...field} />
+                                            </FormControl>
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
                     </CardContent>
 
                     <CardFooter className="flex justify-end">

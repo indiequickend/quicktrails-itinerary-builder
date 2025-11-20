@@ -47,7 +47,7 @@ export function AppSidebar({
         { label: 'Activities', href: '/activities', icon: <Binoculars /> },
         { label: 'Destinations', href: '/destinations', icon: <MapPinned /> },
         { label: 'Itineraries', href: '/itineraries', icon: <Route /> },
-        { label: 'Quotations', href: '/quotations', icon: <ReceiptIndianRupee /> },
+        // { label: 'Quotations', href: '/quotations', icon: <ReceiptIndianRupee /> },
         { label: 'Settings', href: '/settings', icon: <Settings2 /> },
     ];
 
