@@ -1,3 +1,4 @@
+'use client';
 import ActivitiesList from '@/components/ActivitiesList/list';
 
 export default function ActivitiesPage() {
@@ -8,3 +9,4 @@ export default function ActivitiesPage() {
         </div>
     );
 }
+export async function getServerSideProps() { return { props: {} }; }

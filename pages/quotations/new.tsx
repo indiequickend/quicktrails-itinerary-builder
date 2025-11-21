@@ -1,3 +1,4 @@
+'use client';
 import QuotationForm from '@/components/QuotationForm';
 
 export default function NewQuotationPage() {
@@ -8,3 +9,4 @@ export default function NewQuotationPage() {
         </div>
     );
 }
+export async function getServerSideProps() { return { props: {} }; }

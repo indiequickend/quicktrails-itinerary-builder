@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useState, FormEvent } from 'react';
 import { useAppwrite } from '@/contexts/AppwriteContext';
 import { PriceSegment } from '@/types';

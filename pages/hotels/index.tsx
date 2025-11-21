@@ -1,3 +1,4 @@
+'use client';
 import HotelsList from '@/components/HotelsList/list';
 
 export default function HotelsPage() {
@@ -8,3 +9,4 @@ export default function HotelsPage() {
         </div>
     );
 }
+export async function getServerSideProps() { return { props: {} }; }

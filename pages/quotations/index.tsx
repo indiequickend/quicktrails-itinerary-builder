@@ -1,3 +1,4 @@
+'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAppwrite } from '@/contexts/AppwriteContext';
@@ -53,3 +54,4 @@ export default function QuotationsPage() {
         </div>
     );
 }
+export async function getServerSideProps() { return { props: {} }; }

@@ -1,3 +1,4 @@
+'use client';
 import SettingsForm from '@/components/SettingsForm';
 
 export default function SettingsPage() {
@@ -6,4 +7,10 @@ export default function SettingsPage() {
             <SettingsForm />
         </div>
     );
+}
+
+export async function getServerSideProps() {
+    return {
+        props: {}
+    };
 }

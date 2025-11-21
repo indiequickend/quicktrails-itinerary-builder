@@ -1,3 +1,4 @@
+'use client';
 import ItinerariesList from '@/components/ItinerariesList';
 
 export default function ItinerariesPage() {
@@ -8,3 +9,4 @@ export default function ItinerariesPage() {
         </div>
     );
 }
+export async function getServerSideProps() { return { props: {} }; }

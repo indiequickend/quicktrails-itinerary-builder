@@ -1,3 +1,4 @@
+'use client';
 import React from 'react';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
@@ -11,3 +12,4 @@ export default function EditItineraryPage() {
     if (!id) return null; // wait for router to be ready
     return <ItineraryEditor mode="edit" itineraryId={id} />;
 }
+export async function getServerSideProps() { return { props: {} }; }

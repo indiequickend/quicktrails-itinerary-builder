@@ -1,3 +1,4 @@
+'use client';
 import DestinationsList from '@/components/DestinationsList/list';
 
 export default function DestinationsPage() {
@@ -8,3 +9,4 @@ export default function DestinationsPage() {
         </div>
     );
 }
+export async function getServerSideProps() { return { props: {} }; }

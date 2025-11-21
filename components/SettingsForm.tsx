@@ -1,7 +1,8 @@
+'use client';
 import { useEffect, useState, ChangeEvent, FormEvent } from 'react';
 import { useAppwrite } from '@/contexts/AppwriteContext';
 import { Settings } from '@/types';
-
+import dynamic from 'next/dynamic';
 import {
     Card,
     CardHeader,
@@ -27,7 +28,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import Image from 'next/image';
 import { useSettings } from '@/contexts/SettingsContext';
-import ReactQuill from 'react-quill';
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
 import 'react-quill/dist/quill.snow.css';
 
 

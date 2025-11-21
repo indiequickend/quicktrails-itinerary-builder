@@ -1,3 +1,4 @@
+'use client';
 import { useRouter } from 'next/router';
 import PDFGenerator from '@/components/PDFGenerator';
 
@@ -10,3 +11,4 @@ export default function QuotationView() {
         </div>
     );
 }
+export async function getServerSideProps() { return { props: {} }; }

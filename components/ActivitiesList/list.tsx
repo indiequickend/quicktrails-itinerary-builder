@@ -1,3 +1,4 @@
+'use client';
 import { useEffect, useState } from 'react';
 import { useAppwrite } from '@/contexts/AppwriteContext';
 import { Activity } from '@/types';
@@ -28,7 +29,7 @@ export default function ActivitiesList() {
         try {
             // Use query to exclude description field when listing all activities
             const res = await databases.listDocuments(
-                APPWRITE_DATABASE_ID, 
+                APPWRITE_DATABASE_ID,
                 col,
                 [
                     Query.select(['$id', 'name']), // Only fetch ID and name for list
@@ -50,7 +51,7 @@ export default function ActivitiesList() {
                 col,
                 id
             );
-            
+
             return activityDoc as Activity;
         } catch (error) {
             console.error(`Error fetching activity ${id}:`, error);
@@ -101,10 +102,10 @@ export default function ActivitiesList() {
         try {
             setIsLoading(true); // Start loading state
             setOpen(true); // Open dialog immediately to show loading
-            
+
             // Fetch the full activity with description
             const activityToEdit = await fetchActivityDetails(id);
-            
+
             if (activityToEdit) {
                 setNewActivity({
                     name: activityToEdit.name,
