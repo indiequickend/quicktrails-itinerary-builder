@@ -294,7 +294,7 @@ export default function SettingsForm() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <div className='mb-4'>
-                                            <FormLabel className='mb-2'>Inclusions Template</FormLabel>
+                                            <FormLabel className='mb-2'>Inclusions Template <small><i>(Max 1000 Characters)</i></small></FormLabel>
                                             <FormControl>
                                                 <ReactQuill theme="snow" {...field} />
                                             </FormControl>
@@ -309,7 +309,7 @@ export default function SettingsForm() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <div className='mb-4'>
-                                            <FormLabel className='mb-2'>Exclusions Template</FormLabel>
+                                            <FormLabel className='mb-2'>Exclusions Template <small><i>(Max 1000 Characters)</i></small></FormLabel>
                                             <FormControl>
                                                 <ReactQuill theme="snow" {...field} />
                                             </FormControl>
@@ -324,7 +324,7 @@ export default function SettingsForm() {
                                 render={({ field }) => (
                                     <FormItem>
                                         <div className='mb-4'>
-                                            <FormLabel className='mb-2'>Terms & Conditions Template</FormLabel>
+                                            <FormLabel className='mb-2'>Terms & Conditions Template <small><i>(Max 10000 Characters)</i></small></FormLabel>
                                             <FormControl>
                                                 <ReactQuill theme="snow" {...field} />
                                             </FormControl>

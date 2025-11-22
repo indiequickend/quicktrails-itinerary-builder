@@ -913,7 +913,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                     </div>
 
                     <div className="grid grid-cols-4 items-start gap-3">
-                        <Label className="text-right pt-2">Description</Label>
+                        <Label className="text-right pt-2">Description <small><i>(Max 2000 Characters)</i></small></Label>
                         {/* <textarea
                             className="col-span-3 min-h-[90px] border rounded p-2"
                             value={editorIt.description}
@@ -1025,7 +1025,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                 />
                                             </div> */}
                                             <div className="md:col-span-3">
-                                                <Label className="text-sm">Summary</Label>
+                                                <Label className="text-sm">Summary <small><i>(Max 1000 Characters)</i></small></Label>
                                                 <div>
                                                     {editorHydrated ? (
                                                         <ReactQuill
@@ -1168,12 +1168,18 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 ))}
                             </div>
                         )}
+
+                        <div className="flex items-center justify-end mt-2">
+                            <Button type="button" onClick={addDay}>
+                                Add Day
+                            </Button>
+                        </div>
                     </div>
 
                     {/* Inclusions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium">Inclusions</h3>
+                            <h3 className="font-medium">Inclusions <small><i>(Max 1000 Characters)</i></small></h3>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -1204,7 +1210,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                     {/* Exclusions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium">Exclusions</h3>
+                            <h3 className="font-medium">Exclusions <small><i>(Max 1000 Characters)</i></small></h3>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -1234,7 +1240,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                     {/* Terms & Conditions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium">Terms & Conditions</h3>
+                            <h3 className="font-medium">Terms & Conditions <small><i>(Max 10000 Characters)</i></small></h3>
                             <Button
                                 type="button"
                                 variant="outline"
