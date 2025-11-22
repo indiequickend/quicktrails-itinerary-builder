@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DialogFooter } from '@/components/ui/dialog';
-import { Query, Permission, Role } from 'appwrite';
+import { Query, Permission, Role, ID } from 'appwrite';
 import { useSettings } from '@/contexts/SettingsContext';
 // import ReactQuill from 'react-quill';
 import dynamic from 'next/dynamic';
@@ -43,7 +43,6 @@ type ItineraryDoc = ItineraryTemplate & {
 };
 
 type Props = {
-    mode: 'new' | 'edit';
     itineraryId?: string;
 };
 
@@ -52,7 +51,7 @@ interface DestinationOption {
     value: string;
 }
 
-export default function ItineraryEditor({ mode, itineraryId }: Props) {
+export default function ItineraryEditor({ itineraryId }: Props) {
     const router = useRouter();
     const { databases, APPWRITE_ID, APPWRITE_DATABASE_ID } = useAppwrite();
     const { settings } = useSettings();
@@ -133,19 +132,13 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
 
 
     useEffect(() => {
-        // When itinerary has loaded (edit) or templates were set (new)
-        /* const ready =
-            (mode === 'edit' && !!editorIt.$id) ||
-            (mode === 'new' && (editorIt.inclusionHtml || editorIt.exclusionHtml || editorIt.termsHtml)); */
-        const ready = mode === 'edit' ? !!editorIt.$id : true;
-
-        if (ready && !editorHydrated) {
-            setInclusionHtmlLocal(editorIt.inclusionHtml || '');
-            setExclusionHtmlLocal(editorIt.exclusionHtml || '');
-            setTermsHtmlLocal(editorIt.termsHtml || '');
-            setEditorHydrated(true);
-        }
-    }, [mode, editorIt.$id, editorIt.inclusionHtml, editorIt.exclusionHtml, editorIt.termsHtml, editorHydrated]);
+        if (editorHydrated) return;
+        if (!editorIt.$id && itineraryId) return; // wait until loaded for existing doc
+        setInclusionHtmlLocal(editorIt.inclusionHtml || '');
+        setExclusionHtmlLocal(editorIt.exclusionHtml || '');
+        setTermsHtmlLocal(editorIt.termsHtml || '');
+        setEditorHydrated(true);
+    }, [editorIt.$id, editorIt.inclusionHtml, editorIt.exclusionHtml, editorIt.termsHtml, editorHydrated, itineraryId]);
 
     // Reset hydration when switching itineraries
     useEffect(() => {
@@ -198,6 +191,13 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
             itemsByPlanId[p.$id] = itemIds.map((i) => byId[i]).filter(Boolean);
         }
 
+        const toId = (v: any): string =>
+            typeof v === 'string'
+                ? v
+                : v && typeof v === 'object' && ('$id' in v)
+                    ? v.$id
+                    : '';
+
         const days: DayPlan[] = plans.map((p) => ({
             planId: p.$id,
             dayNumber: p.dayNumber ?? 0,
@@ -208,8 +208,8 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                 id: it.$id,
                 type: it.type,
                 title: it.title || '',
-                refActivityId: it.refActivityId || '',
-                refHotelId: it.refHotelId || '',
+                refActivityId: toId(it.refActivityId),
+                refHotelId: toId(it.refHotelId),
                 description: it.description || '',
             })),
         }));
@@ -230,15 +230,17 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
     };
 
     useEffect(() => {
-        loadRefs();
-        if (mode === 'edit' && itineraryId) {
-            fetchItineraryGraph(itineraryId).catch(console.error);
-        }
-    }, [mode, itineraryId]);
+        (async () => {
+            await loadRefs(); // ensure activities & hotels loaded first
+            if (itineraryId) {
+                await fetchItineraryGraph(itineraryId);
+            }
+        })().catch(console.error);
+    }, [itineraryId]);
 
     // Prefill from Settings templates on "new" itineraries (does not mutate templates)
     useEffect(() => {
-        if (mode !== 'new' || !settings) return;
+        if (!settings) return;
         /* setEditorIt(prev => ({
             ...prev,
             inclusionHtml: prev.inclusionHtml ?? (settings.inclusionTemplateHtml || prev.inclusionHtml || ''),
@@ -252,7 +254,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
             exclusionHtml: prev.exclusionHtml?.trim() ? prev.exclusionHtml : (settings.exclusionTemplateHtml || ''),
             termsHtml: prev.termsHtml?.trim() ? prev.termsHtml : (settings.termsTemplateHtml || ''),
         }));
-    }, [mode, settings]);
+    }, [settings]);
 
     // Editor ops
     const addDay = () => {
@@ -329,6 +331,13 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
         });
     };
 
+    const generateSafeAppwriteId = () => {
+        const ts = Date.now().toString(36);          // timestamp, unique per ms
+        const rand = Math.random().toString(36)
+            .substring(2, 10);                         // 8 random chars
+        return ts + rand;
+    }
+
     // Partial graph update (diff-based)
     const updateItineraryGraphPartial = async (id: string) => {
         const originalDayMap: Record<string, DayPlan> = {};
@@ -340,11 +349,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
         const currentPlanIds = currentDays.filter((d) => d.planId).map((d) => d.planId!);
         const deletedPlanIds = Object.keys(originalDayMap).filter((pid) => !currentPlanIds.includes(pid));
 
-        const parent: any = await databases.getDocument(APPWRITE_DATABASE_ID, col, id);
-        const parentPerms: string[] =
-            Array.isArray(parent?.$permissions) && parent.$permissions.length
-                ? parent.$permissions
-                : [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())];
+        // const parent: any = await databases.getDocument(APPWRITE_DATABASE_ID, col, id);
 
         // delete removed day plans
         for (const planId of deletedPlanIds) {
@@ -370,17 +375,18 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
             let planId = d.planId;
 
             if (isNewDay) {
+                console.log('[day:create] index', idx);
                 const newPlan = await databases.createDocument(
                     APPWRITE_DATABASE_ID,
                     colDayPlan,
-                    APPWRITE_ID.unique(),
+                    ID.unique(),
                     {
                         dayNumber: idx + 1,
                         date: d.date || '',
                         title: d.title || '',
                         summary: d.summary || '',
                     },
-                    parentPerms
+                    [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
                 );
                 planId = newPlan.$id;
                 d.planId = planId;
@@ -418,26 +424,33 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                 }
             }
 
+            console.log('currentItems', currentItems);
+
+
             const persistedItemIds: string[] = [];
             for (const it of currentItems) {
                 const isNewItem = it.id.startsWith('local-');
                 if (isNewItem) {
+                    console.log('new item', it);
                     const created = await databases.createDocument(
                         APPWRITE_DATABASE_ID,
                         colDayItem,
-                        APPWRITE_ID.unique(),
+                        ID.unique(),
                         {
                             type: it.type,
-                            title: it.type === 'Activity' || it.type === 'Stay' ? '' : it.title || '',
-                            description: it.type === 'Activity' || it.type === 'Stay' ? '' : it.description || '',
+                            title: it.type === 'Activity' || it.type === 'Stay' ? null : it.title || null,
+                            description: it.type === 'Activity' || it.type === 'Stay' ? null : it.description || null,
                             refActivityId: it.type === 'Activity' ? it.refActivityId || null : null,
                             refHotelId: it.type === 'Stay' ? it.refHotelId || null : null,
                         },
-                        parentPerms
+                        [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
                     );
                     it.id = created.$id;
                     persistedItemIds.push(created.$id);
+
                 } else {
+                    console.log('not new item');
+
                     const orig = origItemMap[it.id];
                     const changed =
                         !orig ||
@@ -479,6 +492,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
     };
 
     const save = async () => {
+        if (saving || !editorIt.$id) return;
         if (!editorIt.title.trim()) return;
         setSaving(true);
         try {
@@ -493,17 +507,11 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                 exclusionHtml: editorIt.exclusionHtml || '',
                 termsHtml: editorIt.termsHtml || '',
             };
-
-            if (mode === 'new') {
-                const newDoc = await databases.createDocument(APPWRITE_DATABASE_ID, col, APPWRITE_ID.unique(), payload);
-                id = newDoc.$id;
-            } else {
-                await databases.updateDocument(APPWRITE_DATABASE_ID, col, id, payload);
-            }
+            await databases.updateDocument(APPWRITE_DATABASE_ID, col, id, payload);
 
             await updateItineraryGraphPartial(id);
 
-            router.push('/'); // or '/itineraries' if you have a listing path
+            router.push('/itineraries'); // or '/itineraries' if you have a listing path
         } catch (e) {
             console.error('Save failed', e);
             // Consider toasting error here
@@ -777,20 +785,43 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                 {d.summary && <div className="mb-2 text-sm" dangerouslySetInnerHTML={{ __html: d.summary }} />}
                                 <div className="space-y-2 mt-4">
                                     {(d.items || []).map((it) => {
-                                        const isRef = it.type === 'Activity' || it.type === 'Stay';
+                                        const activityObj = it.type === 'Activity'
+                                            ? activities.find(a => a.$id === (typeof it.refActivityId === 'string' ? it.refActivityId : (it.refActivityId as any)?.$id))
+                                            : null;
+                                        const hotelObj = it.type === 'Stay'
+                                            ? hotels.find(h => h.$id === (typeof it.refHotelId === 'string' ? it.refHotelId : (it.refHotelId as any)?.$id))
+                                            : null;
+
                                         const label =
                                             it.type === 'Activity'
-                                                ? it.refActivityId.name
+                                                ? (activityObj?.name || 'Activity')
                                                 : it.type === 'Stay'
-                                                    ? it.refHotelId.name
-                                                    : it.title || it.type;
+                                                    ? (hotelObj?.name || 'Stay')
+                                                    : (it.title || it.type);
 
-                                        const sub = it.type === 'Note' || it.type === 'Meal' || it.type === 'Transfer' ? it.description : it.type === 'Activity' ? it.refActivityId.description : "";
+                                        const sub =
+                                            it.type === 'Activity'
+                                                ? (activityObj?.description || '')
+                                                : it.type === 'Stay'
+                                                    ? (hotelObj?.description || '')
+                                                    : (it.description || '');
+
+                                        const imageKey =
+                                            it.type === 'Activity'
+                                                ? 'sightseeing'
+                                                : it.type === 'Stay'
+                                                    ? (hotelObj?.type?.toLowerCase() || 'stay')
+                                                    : 'placeholder';
+
                                         return (
                                             <div key={it.id} className="flex items-start gap-3 mb-4">
-                                                <img src={`/images/${it.type === 'Activity' ? 'sightseeing' : it.type === 'Stay' ? it.refHotelId.type : 'placeholder'}.png`} className="w-10 h-10 rounded object-cover" alt="" />
+                                                <img
+                                                    src={`/images/${imageKey}.png`}
+                                                    className="w-10 h-10 rounded object-cover"
+                                                    alt={label}
+                                                />
                                                 <div>
-                                                    <div className="text-sm font-medium font-semibold" >{label}</div>
+                                                    <div className="text-sm font-medium font-semibold">{label}</div>
                                                     <div className="text-xs text-gray-600 whitespace-pre-wrap">
                                                         {htmlToPlainText(sub)}
                                                     </div>
@@ -876,7 +907,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                 <div className="sticky top-0 bg-white z-10 p-3 border rounded-lg flex gap-2 justify-end">
                     <Button variant="outline" onClick={cancel}>Cancel</Button>
                     <Button onClick={save} disabled={saving || !editorIt.title.trim()}>
-                        {mode === 'new' ? 'Create' : 'Save'}
+                        Save
                     </Button>
                 </div>
 
@@ -891,7 +922,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                     </div>
 
                     <div className="grid grid-cols-4 items-start gap-3">
-                        <Label className="text-right pt-2">Description</Label>
+                        <Label className="text-right pt-2">Description <small><i>(Max 2000 Characters)</i></small></Label>
                         {/* <textarea
                             className="col-span-3 min-h-[90px] border rounded p-2"
                             value={editorIt.description}
@@ -990,20 +1021,20 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                         </div>
 
                                         <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                            <div>
+                                            <div className='md:col-span-3'>
                                                 <Label className="text-sm">Title</Label>
                                                 <Input value={day.title || ''} onChange={(e) => updateDayField(dayIdx, 'title', e.target.value)} />
                                             </div>
-                                            <div>
+                                            {/* <div>
                                                 <Label className="text-sm">Date (optional)</Label>
                                                 <Input
                                                     type="date"
                                                     value={day.date || ''}
                                                     onChange={(e) => updateDayField(dayIdx, 'date', e.target.value)}
                                                 />
-                                            </div>
+                                            </div> */}
                                             <div className="md:col-span-3">
-                                                <Label className="text-sm">Summary</Label>
+                                                <Label className="text-sm">Summary <small><i>(Max 1000 Characters)</i></small></Label>
                                                 <div>
                                                     {editorHydrated ? (
                                                         <ReactQuill
@@ -1065,29 +1096,25 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                                         {item.type === 'Activity' && (
                                                             <div className="md:col-span-3">
                                                                 <Label className="text-sm">Link Activity</Label>
-                                                                <div>
-                                                                    <Select
-                                                                        value={item.refActivityId ? item.refActivityId.$id : ''}
-                                                                        onValueChange={(value) =>
-                                                                            updateItemField(dayIdx, item.id, 'refActivityId', value)
-                                                                        }
-                                                                    >
-                                                                        <SelectTrigger>
-                                                                            <SelectValue placeholder="Select" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent searchable searchPlaceholder='Search activities...'>
-                                                                            <SelectGroup>
-                                                                                {activities.map((a) => (
-                                                                                    <SelectItem key={a.$id} value={a.$id}>
-                                                                                        {a.name}
-                                                                                    </SelectItem>
-                                                                                ))}
-
-                                                                            </SelectGroup>
-                                                                        </SelectContent>
-                                                                    </Select>
-
-                                                                </div>
+                                                                <Select
+                                                                    value={item.refActivityId || ''}
+                                                                    onValueChange={(value) =>
+                                                                        updateItemField(dayIdx, item.id, 'refActivityId', value)
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger>
+                                                                        <SelectValue placeholder="Select" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent searchable searchPlaceholder='Search activities...'>
+                                                                        <SelectGroup>
+                                                                            {activities.map((a) => (
+                                                                                <SelectItem key={a.$id} value={a.$id}>
+                                                                                    {a.name}
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                        </SelectGroup>
+                                                                    </SelectContent>
+                                                                </Select>
                                                             </div>
                                                         )}
 
@@ -1096,7 +1123,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                                                 <Label className="text-sm">Link Stay</Label>
                                                                 <select
                                                                     className="w-full border rounded h-10 px-2"
-                                                                    value={item.refHotelId ? item.refHotelId.$id : ''}
+                                                                    value={item.refHotelId || ''}
                                                                     onChange={(e) => updateItemField(dayIdx, item.id, 'refHotelId', e.target.value)}
                                                                 >
                                                                     <option value="">— Select Hotel/Homestay/Resort —</option>
@@ -1119,7 +1146,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                                                             modules={quillModules}
                                                                             formats={quillFormats}
                                                                             value={item.description || ''}
-                                                                            onChange={(e) => updateItemField(dayIdx, item.id, 'description', e.target.value)}
+                                                                            onChange={(e) => updateItemField(dayIdx, item.id, 'description', e)}
                                                                             placeholder='Details, instructions, etc.'
                                                                         />
                                                                     ) : (
@@ -1150,12 +1177,18 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                 ))}
                             </div>
                         )}
+
+                        <div className="flex items-center justify-end mt-2">
+                            <Button type="button" onClick={addDay}>
+                                Add Day
+                            </Button>
+                        </div>
                     </div>
 
                     {/* Inclusions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium">Inclusions</h3>
+                            <h3 className="font-medium">Inclusions <small><i>(Max 1000 Characters)</i></small></h3>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -1186,7 +1219,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                     {/* Exclusions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium">Exclusions</h3>
+                            <h3 className="font-medium">Exclusions <small><i>(Max 1000 Characters)</i></small></h3>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -1216,7 +1249,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                     {/* Terms & Conditions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium">Terms & Conditions</h3>
+                            <h3 className="font-medium">Terms & Conditions <small><i>(Max 10000 Characters)</i></small></h3>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -1247,7 +1280,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                 <DialogFooter className="mt-6">
                     <Button variant="outline" onClick={cancel}>Cancel</Button>
                     <Button onClick={save} disabled={saving || !editorIt.title.trim()}>
-                        {mode === 'new' ? 'Create' : 'Save'}
+                        Save
                     </Button>
                 </DialogFooter>
             </div>

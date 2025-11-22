@@ -23,8 +23,8 @@ interface DayItem {
     type: DayItemType;
     title: string;
     description?: string;
-    refActivityId?: string;
-    refHotelId?: string;
+    refActivity?: string[];   // multiple activity IDs
+    refHotel?: string[];      // multiple hotel IDs
 }
 interface DayPlan {
     planId?: string;
@@ -148,6 +148,17 @@ export default function ItineraryEditor({ itineraryId }: Props) {
     const relIds = (rel: any): string[] =>
         Array.isArray(rel) ? (rel.map((r) => (typeof r === 'string' ? r : r?.$id)).filter(Boolean) as string[]) : [];
 
+    const toIdArray = (v: any): string[] => {
+        if (!v) return [];
+        if (Array.isArray(v)) {
+            return v.map(x => (typeof x === 'string' ? x : (x && x.$id) || '')).filter(Boolean);
+        }
+        // legacy single value support
+        if (typeof v === 'string') return [v];
+        if (typeof v === 'object' && '$id' in v) return [v.$id];
+        return [];
+    };
+
     const loadRefs = async () => {
         const [dRes, sRes, aRes, hRes] = await Promise.all([
             databases.listDocuments(APPWRITE_DATABASE_ID, colDest),
@@ -208,8 +219,8 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                 id: it.$id,
                 type: it.type,
                 title: it.title || '',
-                refActivityId: toId(it.refActivityId),
-                refHotelId: toId(it.refHotelId),
+                refActivity: toIdArray(it.refActivity ?? it.refActivityId),
+                refHotel: toIdArray(it.refHotel ?? it.refHotelId),
                 description: it.description || '',
             })),
         }));
@@ -289,8 +300,8 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                 id: 'local-' + crypto.randomUUID(),
                 type: 'Activity',
                 title: '',
-                refActivityId: '',
-                refHotelId: '',
+                refActivity: [],
+                refHotel: [],
                 description: '',
             });
             days[dayIdx] = { ...days[dayIdx], items };
@@ -313,16 +324,16 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                 items[idx] = { ...items[idx], [field]: value };
                 if (field === 'type') {
                     if (value === 'Activity') {
-                        items[idx].refHotelId = '';
+                        items[idx].refHotel = [];
                         items[idx].title = '';
                         items[idx].description = '';
                     } else if (value === 'Stay') {
-                        items[idx].refActivityId = '';
+                        items[idx].refActivity = [];
                         items[idx].title = '';
                         items[idx].description = '';
                     } else {
-                        items[idx].refActivityId = '';
-                        items[idx].refHotelId = '';
+                        items[idx].refActivity = [];
+                        items[idx].refHotel = [];
                     }
                 }
             }
@@ -330,6 +341,13 @@ export default function ItineraryEditor({ itineraryId }: Props) {
             return { ...prev, days };
         });
     };
+
+    const generateSafeAppwriteId = () => {
+        const ts = Date.now().toString(36);          // timestamp, unique per ms
+        const rand = Math.random().toString(36)
+            .substring(2, 10);                         // 8 random chars
+        return ts + rand;
+    }
 
     // Partial graph update (diff-based)
     const updateItineraryGraphPartial = async (id: string) => {
@@ -342,11 +360,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         const currentPlanIds = currentDays.filter((d) => d.planId).map((d) => d.planId!);
         const deletedPlanIds = Object.keys(originalDayMap).filter((pid) => !currentPlanIds.includes(pid));
 
-        const parent: any = await databases.getDocument(APPWRITE_DATABASE_ID, col, id);
-        const parentPerms: string[] =
-            Array.isArray(parent?.$permissions) && parent.$permissions.length
-                ? parent.$permissions
-                : [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())];
+        // const parent: any = await databases.getDocument(APPWRITE_DATABASE_ID, col, id);
 
         // delete removed day plans
         for (const planId of deletedPlanIds) {
@@ -383,7 +397,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         title: d.title || '',
                         summary: d.summary || '',
                     },
-                    parentPerms
+                    [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
                 );
                 planId = newPlan.$id;
                 d.planId = planId;
@@ -421,42 +435,45 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                 }
             }
 
+
+
             const persistedItemIds: string[] = [];
             for (const it of currentItems) {
                 const isNewItem = it.id.startsWith('local-');
                 if (isNewItem) {
-                    console.log('[item:create] localId', it.id);
                     const created = await databases.createDocument(
                         APPWRITE_DATABASE_ID,
                         colDayItem,
                         ID.unique(),
                         {
                             type: it.type,
-                            title: it.type === 'Activity' || it.type === 'Stay' ? '' : it.title || '',
-                            description: it.type === 'Activity' || it.type === 'Stay' ? '' : it.description || '',
-                            refActivityId: it.type === 'Activity' ? it.refActivityId || null : null,
-                            refHotelId: it.type === 'Stay' ? it.refHotelId || null : null,
+                            title: it.type === 'Activity' || it.type === 'Stay' ? null : it.title || null,
+                            description: it.type === 'Activity' || it.type === 'Stay' ? null : it.description || null,
+                            refActivity: it.type === 'Activity' ? (it.refActivity || []) : [],
+                            refHotel: it.type === 'Stay' ? (it.refHotel || []) : [],
                         },
-                        parentPerms
+                        [Permission.read(Role.users()), Permission.update(Role.users()), Permission.delete(Role.users())]
                     );
                     it.id = created.$id;
                     persistedItemIds.push(created.$id);
+
                 } else {
+
                     const orig = origItemMap[it.id];
                     const changed =
                         !orig ||
                         orig.type !== it.type ||
                         (orig.title || '') !== (it.title || '') ||
                         (orig.description || '') !== (it.description || '') ||
-                        (orig.refActivityId || '') !== (it.refActivityId || '') ||
-                        (orig.refHotelId || '') !== (it.refHotelId || '');
+                        JSON.stringify(orig.refActivity || []) !== JSON.stringify(it.refActivity || []) ||
+                        JSON.stringify(orig.refHotel || []) !== JSON.stringify(it.refHotel || []);
                     if (changed) {
                         await databases.updateDocument(APPWRITE_DATABASE_ID, colDayItem, it.id, {
                             type: it.type,
                             title: it.type === 'Activity' || it.type === 'Stay' ? '' : it.title || '',
                             description: it.type === 'Activity' || it.type === 'Stay' ? '' : it.description || '',
-                            refActivityId: it.type === 'Activity' ? it.refActivityId || null : null,
-                            refHotelId: it.type === 'Stay' ? it.refHotelId || null : null,
+                            refActivity: it.type === 'Activity' ? (it.refActivity || []) : [],
+                            refHotel: it.type === 'Stay' ? (it.refHotel || []) : [],
                         });
                     }
                     persistedItemIds.push(it.id);
@@ -776,32 +793,32 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 {d.summary && <div className="mb-2 text-sm" dangerouslySetInnerHTML={{ __html: d.summary }} />}
                                 <div className="space-y-2 mt-4">
                                     {(d.items || []).map((it) => {
-                                        const activityObj = it.type === 'Activity'
-                                            ? activities.find(a => a.$id === (typeof it.refActivityId === 'string' ? it.refActivityId : (it.refActivityId as any)?.$id))
-                                            : null;
-                                        const hotelObj = it.type === 'Stay'
-                                            ? hotels.find(h => h.$id === (typeof it.refHotelId === 'string' ? it.refHotelId : (it.refHotelId as any)?.$id))
-                                            : null;
+                                        const activityObjs = it.type === 'Activity'
+                                            ? (it.refActivity || []).map(aid => activities.find(a => a.$id === aid)).filter(Boolean)
+                                            : [];
+                                        const hotelObjs = it.type === 'Stay'
+                                            ? (it.refHotel || []).map(hid => hotels.find(h => h.$id === hid)).filter(Boolean)
+                                            : [];
 
                                         const label =
                                             it.type === 'Activity'
-                                                ? (activityObj?.name || 'Activity')
+                                                ? (activityObjs.map(a => a?.name).filter(Boolean).join(', ') || 'Activity')
                                                 : it.type === 'Stay'
-                                                    ? (hotelObj?.name || 'Stay')
+                                                    ? (hotelObjs.map(h => h?.name).filter(Boolean).join(', ') || 'Stay')
                                                     : (it.title || it.type);
 
                                         const sub =
                                             it.type === 'Activity'
-                                                ? (activityObj?.description || '')
+                                                ? activityObjs.map(a => a?.description || '').filter(Boolean).join('\n')
                                                 : it.type === 'Stay'
-                                                    ? (hotelObj?.description || '')
+                                                    ? hotelObjs.map(h => h?.description || '').filter(Boolean).join('\n')
                                                     : (it.description || '');
 
                                         const imageKey =
                                             it.type === 'Activity'
                                                 ? 'sightseeing'
                                                 : it.type === 'Stay'
-                                                    ? (hotelObj?.type?.toLowerCase() || 'stay')
+                                                    ? 'stay'
                                                     : 'placeholder';
 
                                         return (
@@ -1087,16 +1104,17 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                         {item.type === 'Activity' && (
                                                             <div className="md:col-span-3">
                                                                 <Label className="text-sm">Link Activity</Label>
+
                                                                 <Select
-                                                                    value={item.refActivityId || ''}
+                                                                    value={item.refActivity && item.refActivity?.length > 0 ? item.refActivity[0] : ''}
                                                                     onValueChange={(value) =>
-                                                                        updateItemField(dayIdx, item.id, 'refActivityId', value)
+                                                                        updateItemField(dayIdx, item.id, 'refActivity', [value])
                                                                     }
                                                                 >
                                                                     <SelectTrigger>
                                                                         <SelectValue placeholder="Select" />
                                                                     </SelectTrigger>
-                                                                    <SelectContent searchable searchPlaceholder='Search activities...'>
+                                                                    <SelectContent>
                                                                         <SelectGroup>
                                                                             {activities.map((a) => (
                                                                                 <SelectItem key={a.$id} value={a.$id}>
@@ -1111,19 +1129,26 @@ export default function ItineraryEditor({ itineraryId }: Props) {
 
                                                         {item.type === 'Stay' && (
                                                             <div className="md:col-span-3">
-                                                                <Label className="text-sm">Link Stay</Label>
-                                                                <select
-                                                                    className="w-full border rounded h-10 px-2"
-                                                                    value={item.refHotelId || ''}
-                                                                    onChange={(e) => updateItemField(dayIdx, item.id, 'refHotelId', e.target.value)}
+                                                                <Label className="text-sm">Link Stays</Label>
+                                                                <Select
+                                                                    value={item.refHotel && item.refHotel?.length > 0 ? item.refHotel[0] : ''}
+                                                                    onValueChange={(value) =>
+                                                                        updateItemField(dayIdx, item.id, 'refHotel', [value])
+                                                                    }
                                                                 >
-                                                                    <option value="">— Select Hotel/Homestay/Resort —</option>
-                                                                    {hotels.map((h) => (
-                                                                        <option key={h.$id} value={h.$id}>
-                                                                            {h.name} {h.type ? `(${h.type})` : ''}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
+                                                                    <SelectTrigger>
+                                                                        <SelectValue placeholder="Select" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectGroup>
+                                                                            {hotels.map((h) => (
+                                                                                <SelectItem key={h.$id} value={h.$id}>
+                                                                                    {h.name} {h.type ? `(${h.type})` : ''}
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                        </SelectGroup>
+                                                                    </SelectContent>
+                                                                </Select>
                                                             </div>
                                                         )}
 
