@@ -814,12 +814,17 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                     ? hotelObjs.map(h => h?.description || '').filter(Boolean).join('\n')
                                                     : (it.description || '');
 
-                                        const imageKey =
-                                            it.type === 'Activity'
-                                                ? 'sightseeing'
-                                                : it.type === 'Stay'
-                                                    ? 'stay'
-                                                    : 'placeholder';
+                                        let imageKey = ""
+                                        if (it.type === 'Activity') {
+                                            imageKey = 'sightseeing';
+                                        } else if (it.type === 'Stay') {
+                                            if (hotelObjs.length === 0) {
+                                                imageKey = 'stay';
+                                            } else {
+                                                imageKey = hotelObjs[0]?.type.toLowerCase() || 'stay';
+                                            }
+                                        }
+
 
                                         return (
                                             <div key={it.id} className="flex items-start gap-3 mb-4">
