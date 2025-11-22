@@ -1,15 +1,12 @@
 'use client';
 import React from 'react';
 import { useRouter } from 'next/router';
-import dynamic from 'next/dynamic';
-
-const ItineraryEditor = dynamic(() => import('@/components/ItineraryEditor'), { ssr: false });
+import ItineraryEditor from '@/components/ItineraryEditor';
 
 export default function EditItineraryPage() {
     const router = useRouter();
-    const { id } = router.query as { id?: string };
-
-    if (!id) return null; // wait for router to be ready
-    return <ItineraryEditor mode="edit" itineraryId={id} />;
+    const { id } = router.query;
+    if (typeof id !== 'string') return null;
+    return <ItineraryEditor itineraryId={id} />;
 }
 export async function getServerSideProps() { return { props: {} }; }

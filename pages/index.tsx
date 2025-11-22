@@ -13,7 +13,7 @@ export default function HomePage() {
                     { label: 'Activities', href: '/activities' },
                     { label: 'Destinations', href: '/destinations' },
                     { label: 'Itineraries', href: '/itineraries' },
-                    { label: 'Quotations', href: '/quotations' },
+                    // { label: 'Quotations', href: '/quotations' },
                 ].map(({ label, href }) => (
                     <Link
                         key={href}

@@ -161,7 +161,6 @@ export default function DestinationsList() {
 
     return (
         <div className="container mx-auto py-4">
-            <h2 className="text-xl font-semibold mb-4">Manage Destinations</h2>
 
             <DataTable
                 columns={columns}

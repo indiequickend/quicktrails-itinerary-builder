@@ -130,7 +130,6 @@ export default function ActivitiesList() {
 
     return (
         <div className="container mx-auto py-4">
-            <h2 className="text-xl font-semibold mb-4">Manage Activities</h2>
 
             <DataTable
                 columns={columns}

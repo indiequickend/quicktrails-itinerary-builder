@@ -191,13 +191,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
             itemsByPlanId[p.$id] = itemIds.map((i) => byId[i]).filter(Boolean);
         }
 
-        const toId = (v: any): string =>
-            typeof v === 'string'
-                ? v
-                : v && typeof v === 'object' && ('$id' in v)
-                    ? v.$id
-                    : '';
-
         const days: DayPlan[] = plans.map((p) => ({
             planId: p.$id,
             dayNumber: p.dayNumber ?? 0,
@@ -208,8 +201,8 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                 id: it.$id,
                 type: it.type,
                 title: it.title || '',
-                refActivityId: toId(it.refActivityId),
-                refHotelId: toId(it.refHotelId),
+                refActivityId: it.refActivityId || '',
+                refHotelId: it.refHotelId || '',
                 description: it.description || '',
             })),
         }));
@@ -230,12 +223,10 @@ export default function ItineraryEditor({ itineraryId }: Props) {
     };
 
     useEffect(() => {
-        (async () => {
-            await loadRefs(); // ensure activities & hotels loaded first
-            if (itineraryId) {
-                await fetchItineraryGraph(itineraryId);
-            }
-        })().catch(console.error);
+        loadRefs();
+        if (itineraryId) {
+            fetchItineraryGraph(itineraryId).catch(console.error);
+        }
     }, [itineraryId]);
 
     // Prefill from Settings templates on "new" itineraries (does not mutate templates)
@@ -776,12 +767,8 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 {d.summary && <div className="mb-2 text-sm" dangerouslySetInnerHTML={{ __html: d.summary }} />}
                                 <div className="space-y-2 mt-4">
                                     {(d.items || []).map((it) => {
-                                        const activityObj = it.type === 'Activity'
-                                            ? activities.find(a => a.$id === (typeof it.refActivityId === 'string' ? it.refActivityId : (it.refActivityId as any)?.$id))
-                                            : null;
-                                        const hotelObj = it.type === 'Stay'
-                                            ? hotels.find(h => h.$id === (typeof it.refHotelId === 'string' ? it.refHotelId : (it.refHotelId as any)?.$id))
-                                            : null;
+                                        const activityObj = it.type === 'Activity' ? activities.find(a => a.$id === it.refActivityId) : null;
+                                        const hotelObj = it.type === 'Stay' ? hotels.find(h => h.$id === it.refHotelId) : null;
 
                                         const label =
                                             it.type === 'Activity'
@@ -1087,25 +1074,29 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                         {item.type === 'Activity' && (
                                                             <div className="md:col-span-3">
                                                                 <Label className="text-sm">Link Activity</Label>
-                                                                <Select
-                                                                    value={item.refActivityId || ''}
-                                                                    onValueChange={(value) =>
-                                                                        updateItemField(dayIdx, item.id, 'refActivityId', value)
-                                                                    }
-                                                                >
-                                                                    <SelectTrigger>
-                                                                        <SelectValue placeholder="Select" />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent searchable searchPlaceholder='Search activities...'>
-                                                                        <SelectGroup>
-                                                                            {activities.map((a) => (
-                                                                                <SelectItem key={a.$id} value={a.$id}>
-                                                                                    {a.name}
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectGroup>
-                                                                    </SelectContent>
-                                                                </Select>
+                                                                <div>
+                                                                    <Select
+                                                                        defaultValue={item.refActivityId ? item.refActivityId.$id : ''}
+                                                                        onValueChange={(value) =>
+                                                                            updateItemField(dayIdx, item.id, 'refActivityId', value)
+                                                                        }
+                                                                    >
+                                                                        <SelectTrigger>
+                                                                            <SelectValue placeholder="Select" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent searchable searchPlaceholder='Search activities...'>
+                                                                            <SelectGroup>
+                                                                                {activities.map((a) => (
+                                                                                    <SelectItem key={a.$id} value={a.$id}>
+                                                                                        {a.name}
+                                                                                    </SelectItem>
+                                                                                ))}
+
+                                                                            </SelectGroup>
+                                                                        </SelectContent>
+                                                                    </Select>
+
+                                                                </div>
                                                             </div>
                                                         )}
 
@@ -1114,7 +1105,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                                 <Label className="text-sm">Link Stay</Label>
                                                                 <select
                                                                     className="w-full border rounded h-10 px-2"
-                                                                    value={item.refHotelId || ''}
+                                                                    value={item.refHotelId ? item.refHotelId.$id : ''}
                                                                     onChange={(e) => updateItemField(dayIdx, item.id, 'refHotelId', e.target.value)}
                                                                 >
                                                                     <option value="">— Select Hotel/Homestay/Resort —</option>
@@ -1137,7 +1128,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                                             modules={quillModules}
                                                                             formats={quillFormats}
                                                                             value={item.description || ''}
-                                                                            onChange={(e) => updateItemField(dayIdx, item.id, 'description', e)}
+                                                                            onChange={(e) => updateItemField(dayIdx, item.id, 'description', e.target.value)}
                                                                             placeholder='Details, instructions, etc.'
                                                                         />
                                                                     ) : (

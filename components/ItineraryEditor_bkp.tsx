@@ -1,3 +1,4 @@
+'use client';
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAppwrite } from '@/contexts/AppwriteContext';
@@ -8,10 +9,12 @@ import { Label } from '@/components/ui/label';
 import { DialogFooter } from '@/components/ui/dialog';
 import { Query, Permission, Role } from 'appwrite';
 import { useSettings } from '@/contexts/SettingsContext';
-import ReactQuill from 'react-quill';
-
+// import ReactQuill from 'react-quill';
+import dynamic from 'next/dynamic';
+const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
 import 'react-quill/dist/quill.snow.css';
 import { MultiSelect } from "@/components/ui/multi-select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 type DayItemType = 'Activity' | 'Stay'; //| 'Transfer' | 'Meal' |  | 'Note';
 
@@ -44,6 +47,11 @@ type Props = {
     itineraryId?: string;
 };
 
+interface DestinationOption {
+    label: string;
+    value: string;
+}
+
 export default function ItineraryEditor({ mode, itineraryId }: Props) {
     const router = useRouter();
     const { databases, APPWRITE_ID, APPWRITE_DATABASE_ID } = useAppwrite();
@@ -62,13 +70,21 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
 
 
     const [dests, setDests] = useState<Destination[]>([]);
+    const [destOptions, setDestOptions] = useState<DestinationOption[]>([]);
     const [segs, setSegs] = useState<any[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [hotels, setHotels] = useState<Hotel[]>([]);
-    const destOptions = useMemo(() => dests.map(d => ({ label: d.name, value: d.$id })), [dests]);
+    // const destOptions = useMemo(() => dests.map(d => ({ label: d.name, value: d.$id })), [dests]);
     /* const segOptions = useMemo(() => segs.map(s => ({ label: s.name, value: s.$id })), [segs]);
     const actOptions = useMemo(() => activities.map(a => ({ label: a.name, value: a.$id })), [activities]);
     const hotelOptions = useMemo(() => hotels.map(h => ({ label: h.name, value: h.$id })), [hotels]); */
+
+    useEffect(() => {
+        // Transform activities for multi-select
+        const options = dests.map(d => ({ label: d.name, value: d.$id }));
+        setDestOptions(options);
+    }, [dests])
+
 
     const [editorIt, setEditorIt] = useState<ItineraryDoc>({
         title: '',
@@ -82,6 +98,59 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
     });
     const [originalGraph, setOriginalGraph] = useState<{ days: DayPlan[] }>({ days: [] });
     const [saving, setSaving] = useState(false);
+
+    const [inclusionHtmlLocal, setInclusionHtmlLocal] = useState('');
+    const [exclusionHtmlLocal, setExclusionHtmlLocal] = useState('');
+    const [termsHtmlLocal, setTermsHtmlLocal] = useState('');
+    const [editorHydrated, setEditorHydrated] = useState(false); // mount Quill only after DB/template load
+
+
+    // Stable toolbar to avoid re-mounts
+    const quillModules = useMemo(
+        () => ({
+            toolbar: [
+                [{ header: [1, 2, false] }],
+                ['bold', 'italic', 'underline'],
+                [{ list: 'ordered' }, { list: 'bullet' }],
+                ['link'],
+                ['clean'],
+            ],
+        }),
+        []
+    );
+    const quillFormats = useMemo(
+        () => ['header', 'bold', 'italic', 'underline', 'list', 'bullet', 'link'],
+        []
+    );
+
+    useEffect(() => {
+        if (!destOptions.length) return;
+        setEditorIt(prev => ({
+            ...prev,
+            destinationIds: (prev.destinationIds || []).filter(id => destOptions.some(o => o.value === id))
+        }));
+    }, [destOptions]);
+
+
+    useEffect(() => {
+        // When itinerary has loaded (edit) or templates were set (new)
+        /* const ready =
+            (mode === 'edit' && !!editorIt.$id) ||
+            (mode === 'new' && (editorIt.inclusionHtml || editorIt.exclusionHtml || editorIt.termsHtml)); */
+        const ready = mode === 'edit' ? !!editorIt.$id : true;
+
+        if (ready && !editorHydrated) {
+            setInclusionHtmlLocal(editorIt.inclusionHtml || '');
+            setExclusionHtmlLocal(editorIt.exclusionHtml || '');
+            setTermsHtmlLocal(editorIt.termsHtml || '');
+            setEditorHydrated(true);
+        }
+    }, [mode, editorIt.$id, editorIt.inclusionHtml, editorIt.exclusionHtml, editorIt.termsHtml, editorHydrated]);
+
+    // Reset hydration when switching itineraries
+    useEffect(() => {
+        setEditorHydrated(false);
+    }, [itineraryId]);
 
     const relIds = (rel: any): string[] =>
         Array.isArray(rel) ? (rel.map((r) => (typeof r === 'string' ? r : r?.$id)).filter(Boolean) as string[]) : [];
@@ -170,11 +239,18 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
     // Prefill from Settings templates on "new" itineraries (does not mutate templates)
     useEffect(() => {
         if (mode !== 'new' || !settings) return;
-        setEditorIt(prev => ({
+        /* setEditorIt(prev => ({
             ...prev,
             inclusionHtml: prev.inclusionHtml ?? (settings.inclusionTemplateHtml || prev.inclusionHtml || ''),
             exclusionHtml: prev.exclusionHtml ?? (settings.exclusionTemplateHtml || prev.exclusionHtml || ''),
             termsHtml: prev.termsHtml ?? (settings.termsTemplateHtml || prev.termsHtml || ''),
+        })); */
+
+        setEditorIt(prev => ({
+            ...prev,
+            inclusionHtml: prev.inclusionHtml?.trim() ? prev.inclusionHtml : (settings.inclusionTemplateHtml || ''),
+            exclusionHtml: prev.exclusionHtml?.trim() ? prev.exclusionHtml : (settings.exclusionTemplateHtml || ''),
+            termsHtml: prev.termsHtml?.trim() ? prev.termsHtml : (settings.termsTemplateHtml || ''),
         }));
     }, [mode, settings]);
 
@@ -682,7 +758,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                 </span>
                             ))}
                         </div>
-                        {editorIt.description && <p className="mt-3 text-sm text-gray-700 whitespace-pre-wrap">{editorIt.description}</p>}
+                        {editorIt.description && <p className="mt-3 text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: editorIt.description }} />}
                     </div>
                 </div>
 
@@ -698,7 +774,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                 </div>
                             </div>
                             <div className="p-3">
-                                {d.summary && <p className="mb-2 text-sm whitespace-pre-wrap">{d.summary}</p>}
+                                {d.summary && <div className="mb-2 text-sm" dangerouslySetInnerHTML={{ __html: d.summary }} />}
                                 <div className="space-y-2 mt-4">
                                     {(d.items || []).map((it) => {
                                         const isRef = it.type === 'Activity' || it.type === 'Stay';
@@ -816,12 +892,28 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
 
                     <div className="grid grid-cols-4 items-start gap-3">
                         <Label className="text-right pt-2">Description</Label>
-                        <textarea
+                        {/* <textarea
                             className="col-span-3 min-h-[90px] border rounded p-2"
                             value={editorIt.description}
                             onChange={(e) => setEditorIt({ ...editorIt, description: e.target.value })}
                             placeholder="High-level itinerary overview"
-                        />
+                        /> */}
+                        <div className="col-span-3">
+                            {editorHydrated ? (
+                                <ReactQuill
+                                    theme="snow"
+                                    modules={quillModules}
+                                    formats={quillFormats}
+                                    value={editorIt.description}
+                                    onChange={(value) => setEditorIt({ ...editorIt, description: value })}
+                                    placeholder='High-level itinerary overview'
+                                />
+                            ) : (
+                                <div className="text-xs text-muted-foreground">Loading editor…</div>
+                            )}
+
+
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-4 items-start gap-3">
@@ -830,7 +922,6 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                             {destOptions.length > 0 ? (
                                 <MultiSelect
                                     options={destOptions}
-
                                     defaultValue={editorIt.destinationIds}
                                     onValueChange={(values) =>
                                         setEditorIt(prev => ({ ...prev, destinationIds: values }))
@@ -843,44 +934,34 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                 </div>
                             )}
                         </div>
-                        {/* <select
-                            multiple
-                            className="col-span-3 border rounded p-2 h-32"
-                            value={editorIt.destinationIds}
-                            onChange={(e) =>
-                                setEditorIt({
-                                    ...editorIt,
-                                    destinationIds: Array.from(e.target.selectedOptions).map((o) => o.value),
-                                })
-                            }
-                        >
-                            {dests.map((d) => (
-                                <option key={d.$id} value={d.$id}>
-                                    {d.name}
-                                </option>
-                            ))}
-                        </select> */}
                     </div>
 
                     <div className="grid grid-cols-4 items-start gap-3">
                         <Label className="text-right pt-2">Price Segments</Label>
-                        <select
-                            multiple
-                            className="col-span-3 border rounded p-2 h-28"
-                            value={editorIt.priceSegmentIds}
-                            onChange={(e) =>
-                                setEditorIt({
-                                    ...editorIt,
-                                    priceSegmentIds: Array.from(e.target.selectedOptions).map((o) => o.value),
-                                })
-                            }
-                        >
-                            {segs.map((s) => (
-                                <option key={s.$id} value={s.$id}>
-                                    {s.name}
-                                </option>
-                            ))}
-                        </select>
+                        <div>
+                            <Select
+                                value={editorIt.priceSegmentIds.length > 0 ? editorIt.priceSegmentIds[0] : ''}
+                                onValueChange={(value) =>
+                                    setEditorIt({
+                                        ...editorIt,
+                                        priceSegmentIds: [value],
+                                    })
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectGroup>
+                                        {segs.map((s) => (
+                                            <SelectItem key={s.$id} value={s.$id}>
+                                                {s.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
                     {/* Days editor */}
@@ -908,7 +989,7 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                             </div>
                                         </div>
 
-                                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                                        <div className="mt-3 grid gap-3 md:grid-cols-2">
                                             <div>
                                                 <Label className="text-sm">Title</Label>
                                                 <Input value={day.title || ''} onChange={(e) => updateDayField(dayIdx, 'title', e.target.value)} />
@@ -923,11 +1004,22 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                             </div>
                                             <div className="md:col-span-3">
                                                 <Label className="text-sm">Summary</Label>
-                                                <textarea
-                                                    value={day.summary || ''}
-                                                    onChange={(e) => updateDayField(dayIdx, 'summary', e.target.value)}
-                                                    className="w-full min-h-[70px] border rounded p-2"
-                                                />
+                                                <div>
+                                                    {editorHydrated ? (
+                                                        <ReactQuill
+                                                            theme="snow"
+                                                            modules={quillModules}
+                                                            formats={quillFormats}
+                                                            value={day.summary || ''}
+                                                            onChange={(value) => updateDayField(dayIdx, 'summary', value)}
+                                                            placeholder='Short summary of the day'
+                                                        />
+                                                    ) : (
+                                                        <div className="text-xs text-muted-foreground">Loading editor…</div>
+                                                    )}
+
+
+                                                </div>
                                             </div>
                                         </div>
 
@@ -936,19 +1028,27 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                             {day.items.map((item) => (
                                                 <div key={item.id} className="border rounded p-3">
                                                     <div className="grid gap-3 md:grid-cols-6">
-                                                        <div className="md:col-span-2">
+                                                        <div className="md:col-span-3">
                                                             <Label className="text-sm">Type</Label>
-                                                            <select
-                                                                className="w-full border rounded h-10 px-2"
+                                                            <Select
                                                                 value={item.type}
-                                                                onChange={(e) => updateItemField(dayIdx, item.id, 'type', e.target.value as DayItemType)}
+                                                                onValueChange={(value) =>
+                                                                    updateItemField(dayIdx, item.id, 'type', value as DayItemType)
+                                                                }
                                                             >
-                                                                <option>Activity</option>
-                                                                <option>Stay</option>
-                                                                {/* <option>Transfer</option>
-                                                                <option>Meal</option>
-                                                                <option>Note</option> */}
-                                                            </select>
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Select" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectGroup>
+                                                                        <SelectItem value="Activity">Activity</SelectItem>
+                                                                        <SelectItem value="Stay">Stay</SelectItem>
+                                                                        {/* <SelectItem value="Transfer">Transfer</SelectItem>
+                                                                        <SelectItem value="Meal">Meal</SelectItem>
+                                                                        <SelectItem value="Note">Note</SelectItem> */}
+                                                                    </SelectGroup>
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
 
                                                         {(item.type !== 'Activity' && item.type !== 'Stay') && (
@@ -965,24 +1065,35 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                                         {item.type === 'Activity' && (
                                                             <div className="md:col-span-3">
                                                                 <Label className="text-sm">Link Activity</Label>
-                                                                <select
-                                                                    className="w-full border rounded h-10 px-2"
-                                                                    value={item.refActivityId ? item.refActivityId.$id : ''}
-                                                                    onChange={(e) => updateItemField(dayIdx, item.id, 'refActivityId', e.target.value)}
-                                                                >
-                                                                    <option value="">— Select Activity —</option>
-                                                                    {activities.map((a) => (
-                                                                        <option key={a.$id} value={a.$id}>
-                                                                            {a.name}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
+                                                                <div>
+                                                                    <Select
+                                                                        value={item.refActivityId ? item.refActivityId.$id : ''}
+                                                                        onValueChange={(value) =>
+                                                                            updateItemField(dayIdx, item.id, 'refActivityId', value)
+                                                                        }
+                                                                    >
+                                                                        <SelectTrigger>
+                                                                            <SelectValue placeholder="Select" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent searchable searchPlaceholder='Search activities...'>
+                                                                            <SelectGroup>
+                                                                                {activities.map((a) => (
+                                                                                    <SelectItem key={a.$id} value={a.$id}>
+                                                                                        {a.name}
+                                                                                    </SelectItem>
+                                                                                ))}
+
+                                                                            </SelectGroup>
+                                                                        </SelectContent>
+                                                                    </Select>
+
+                                                                </div>
                                                             </div>
                                                         )}
 
                                                         {item.type === 'Stay' && (
                                                             <div className="md:col-span-3">
-                                                                <Label className="text-sm">Link Hotel</Label>
+                                                                <Label className="text-sm">Link Stay</Label>
                                                                 <select
                                                                     className="w-full border rounded h-10 px-2"
                                                                     value={item.refHotelId ? item.refHotelId.$id : ''}
@@ -1001,12 +1112,22 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                                                         {(item.type !== 'Activity' && item.type !== 'Stay') && (
                                                             <div className="md:col-span-6">
                                                                 <Label className="text-sm">Notes</Label>
-                                                                <textarea
-                                                                    className="w-full min-h-[70px] border rounded p-2"
-                                                                    value={item.description || ''}
-                                                                    onChange={(e) => updateItemField(dayIdx, item.id, 'description', e.target.value)}
-                                                                    placeholder="Details, instructions, etc."
-                                                                />
+                                                                <div>
+                                                                    {editorHydrated ? (
+                                                                        <ReactQuill
+                                                                            theme="snow"
+                                                                            modules={quillModules}
+                                                                            formats={quillFormats}
+                                                                            value={item.description || ''}
+                                                                            onChange={(e) => updateItemField(dayIdx, item.id, 'description', e.target.value)}
+                                                                            placeholder='Details, instructions, etc.'
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="text-xs text-muted-foreground">Loading editor…</div>
+                                                                    )}
+
+
+                                                                </div>
                                                             </div>
                                                         )}
 
@@ -1044,7 +1165,20 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                             </Button>
                         </div>
                         <div>
-                            <ReactQuill theme="snow" value={editorIt.inclusionHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, inclusionHtml: html })} />
+                            {editorHydrated ? (
+                                <ReactQuill
+                                    theme="snow"
+                                    modules={quillModules}
+                                    formats={quillFormats}
+                                    value={inclusionHtmlLocal}
+                                    onChange={setInclusionHtmlLocal}
+                                    onBlur={() => setEditorIt(prev => ({ ...prev, inclusionHtml: inclusionHtmlLocal }))}
+                                />
+                            ) : (
+                                <div className="text-xs text-muted-foreground">Loading editor…</div>
+                            )}
+
+                            {/* <ReactQuill theme="snow" value={editorIt.inclusionHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, inclusionHtml: html })} /> */}
                         </div>
 
                     </div>
@@ -1062,7 +1196,20 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                             </Button>
                         </div>
                         <div>
-                            <ReactQuill theme="snow" value={editorIt.exclusionHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, exclusionHtml: html })} />
+                            {editorHydrated ? (
+                                <ReactQuill
+                                    theme="snow"
+                                    modules={quillModules}
+                                    formats={quillFormats}
+                                    value={exclusionHtmlLocal}
+                                    onChange={setExclusionHtmlLocal}
+                                    onBlur={() => setEditorIt(prev => ({ ...prev, exclusionHtml: exclusionHtmlLocal }))}
+                                />
+                            ) : (
+                                <div className="text-xs text-muted-foreground">Loading editor…</div>
+                            )}
+
+                            {/* <ReactQuill theme="snow" value={editorIt.exclusionHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, exclusionHtml: html })} /> */}
                         </div>
                     </div>
 
@@ -1079,7 +1226,20 @@ export default function ItineraryEditor({ mode, itineraryId }: Props) {
                             </Button>
                         </div>
                         <div>
-                            <ReactQuill theme="snow" value={editorIt.termsHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, termsHtml: html })} />
+                            {editorHydrated ? (
+                                <ReactQuill
+                                    theme="snow"
+                                    modules={quillModules}
+                                    formats={quillFormats}
+                                    value={termsHtmlLocal}
+                                    onChange={setTermsHtmlLocal}
+                                    onBlur={() => setEditorIt(prev => ({ ...prev, termsHtml: termsHtmlLocal }))}
+                                />
+                            ) : (
+                                <div className="text-xs text-muted-foreground">Loading editor…</div>
+                            )}
+
+                            {/* <ReactQuill theme="snow" value={editorIt.termsHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, termsHtml: html })} /> */}
                         </div>
                     </div>
                 </div>
