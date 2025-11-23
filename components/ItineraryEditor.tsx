@@ -493,6 +493,47 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         return s;
     };
 
+    const updateDayField = (idx: number, field: keyof DayPlan, value: string) => {
+        setEditorIt((prev) => {
+            const days = [...(prev.days || [])];
+            days[idx] = { ...days[idx], [field]: value };
+            return { ...prev, days };
+        });
+    };
+
+    const removeDay = (i: number) => {
+        setEditorIt((prev) => {
+            const days = [...(prev.days || [])];
+            days.splice(i, 1);
+            const renum = days.map((d, idx) => ({ ...d, dayNumber: idx + 1 }));
+            return { ...prev, days: renum };
+        });
+    };
+
+    const addItem = (dayIdx: number) => {
+        setEditorIt((prev) => {
+            const days = [...(prev.days || [])];
+            const items = [...(days[dayIdx].items || [])];
+            items.push({
+                id: 'local-' + crypto.randomUUID(),
+                type: 'Activity',
+                title: '',
+                refActivity: [],
+                refHotel: [],
+                description: '',
+            });
+            days[dayIdx] = { ...days[dayIdx], items };
+            return { ...prev, days };
+        });
+    };
+    const removeItem = (dayIdx: number, itemId: string) => {
+        setEditorIt((prev) => {
+            const days = [...(prev.days || [])];
+            days[dayIdx] = { ...days[dayIdx], items: days[dayIdx].items.filter((i) => i.id !== itemId) };
+            return { ...prev, days };
+        });
+    };
+
     const addDay = () => {
         setEditorIt((prev) => ({
             ...prev,
@@ -501,6 +542,33 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                 { planId: undefined, dayNumber: (prev.days?.length || 0) + 1, title: '', summary: '', date: '', items: [] },
             ],
         }));
+    };
+
+    const updateItemField = <K extends keyof DayItem>(dayIdx: number, itemId: string, field: K, value: DayItem[K]) => {
+        setEditorIt((prev) => {
+            const days = [...(prev.days || [])];
+            const items = [...(days[dayIdx].items || [])];
+            const idx = items.findIndex((i) => i.id === itemId);
+            if (idx !== -1) {
+                items[idx] = { ...items[idx], [field]: value };
+                if (field === 'type') {
+                    if (value === 'Activity') {
+                        items[idx].refHotel = [];
+                        items[idx].title = '';
+                        items[idx].description = '';
+                    } else if (value === 'Stay') {
+                        items[idx].refActivity = [];
+                        items[idx].title = '';
+                        items[idx].description = '';
+                    } else {
+                        items[idx].refActivity = [];
+                        items[idx].refHotel = [];
+                    }
+                }
+            }
+            days[dayIdx] = { ...days[dayIdx], items };
+            return { ...prev, days };
+        });
     };
 
     const downloadPreviewPdf = async () => {
@@ -901,6 +969,8 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                         setEditorIt(prev => ({ ...prev, destinationIds: values }))
                                     }
                                     placeholder="Select destinations"
+                                    maxCount={5}
+
                                 />
                             ) : (
                                 <div className="text-sm text-muted-foreground p-2 border rounded-md">
