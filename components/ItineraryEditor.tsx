@@ -51,6 +51,11 @@ interface DestinationOption {
     value: string;
 }
 
+interface SegmentOption {
+    label: string;
+    value: string;
+}
+
 export default function ItineraryEditor({ itineraryId }: Props) {
     const router = useRouter();
     const { databases, APPWRITE_ID, APPWRITE_DATABASE_ID } = useAppwrite();
@@ -70,6 +75,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
     const [dests, setDests] = useState<Destination[]>([]);
     const [destOptions, setDestOptions] = useState<DestinationOption[]>([]);
     const [segs, setSegs] = useState<any[]>([]);
+    const [segOptions, setSegOptions] = useState<SegmentOption[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [hotels, setHotels] = useState<Hotel[]>([]);
 
@@ -77,6 +83,11 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         const options = dests.map(d => ({ label: d.name, value: d.$id }));
         setDestOptions(options);
     }, [dests]);
+
+    useEffect(() => {
+        const options = segs.map(s => ({ label: s.name, value: s.$id }));
+        setSegOptions(options);
+    }, [segs]);
 
     const [editorIt, setEditorIt] = useState<ItineraryDoc>({
         title: '',
@@ -983,7 +994,17 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                     <div className="grid grid-cols-4 items-start gap-3">
                         <Label className="text-right pt-2">Price Segments</Label>
                         <div>
-                            <Select
+                            <MultiSelect
+                                options={segOptions}
+                                defaultValue={editorIt.priceSegmentIds}
+                                onValueChange={(values) =>
+                                    setEditorIt(prev => ({ ...prev, priceSegmentIds: values }))
+                                }
+                                placeholder="Select"
+                                single
+                            />
+
+                            {/* <Select
                                 value={editorIt.priceSegmentIds.length > 0 ? editorIt.priceSegmentIds[0] : ''}
                                 onValueChange={(value) =>
                                     setEditorIt({
@@ -1004,7 +1025,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                         ))}
                                     </SelectGroup>
                                 </SelectContent>
-                            </Select>
+                            </Select> */}
                         </div>
                     </div>
 
@@ -1094,8 +1115,16 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                         {item.type === 'Activity' && (
                                                             <div className="md:col-span-3">
                                                                 <Label className="text-sm">Link Activity</Label>
-
-                                                                <Select
+                                                                <MultiSelect
+                                                                    options={activities.map(a => ({ label: a.name, value: a.$id }))}
+                                                                    defaultValue={item.refActivity && item.refActivity?.length > 0 ? item.refActivity : []}
+                                                                    onValueChange={(values) =>
+                                                                        updateItemField(dayIdx, item.id, 'refActivity', values)
+                                                                    }
+                                                                    placeholder="Select"
+                                                                    single
+                                                                />
+                                                                {/* <Select
                                                                     value={item.refActivity && item.refActivity?.length > 0 ? item.refActivity[0] : ''}
                                                                     onValueChange={(value) =>
                                                                         updateItemField(dayIdx, item.id, 'refActivity', [value])
@@ -1113,14 +1142,23 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                                             ))}
                                                                         </SelectGroup>
                                                                     </SelectContent>
-                                                                </Select>
+                                                                </Select> */}
                                                             </div>
                                                         )}
 
                                                         {item.type === 'Stay' && (
                                                             <div className="md:col-span-3">
                                                                 <Label className="text-sm">Link Stays</Label>
-                                                                <Select
+                                                                <MultiSelect
+                                                                    options={hotels.map(a => ({ label: a.name, value: a.$id }))}
+                                                                    defaultValue={item.refHotel && item.refHotel?.length > 0 ? item.refHotel : []}
+                                                                    onValueChange={(values) =>
+                                                                        updateItemField(dayIdx, item.id, 'refHotel', values)
+                                                                    }
+                                                                    placeholder="Select"
+                                                                    single
+                                                                />
+                                                                {/* <Select
                                                                     value={item.refHotel && item.refHotel?.length > 0 ? item.refHotel[0] : ''}
                                                                     onValueChange={(value) =>
                                                                         updateItemField(dayIdx, item.id, 'refHotel', [value])
@@ -1138,7 +1176,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                                             ))}
                                                                         </SelectGroup>
                                                                     </SelectContent>
-                                                                </Select>
+                                                                </Select> */}
                                                             </div>
                                                         )}
 

@@ -121,6 +121,11 @@ interface MultiSelectProps
      * Optional, can be used to add custom styles.
      */
     className?: string;
+
+    /**
+     * When true, behaves like a single-select, but still returns an array.
+     */
+    single?: boolean;
 }
 
 export const MultiSelect = React.forwardRef<
@@ -140,6 +145,7 @@ export const MultiSelect = React.forwardRef<
             modalPopover = false,
             asChild = false,
             className,
+            single = false,
             ...props
         },
         ref
@@ -163,11 +169,15 @@ export const MultiSelect = React.forwardRef<
             }
         }, [defaultValue, isControlled]);
 
-        // Sanitize selected values when options list changes (remove deleted options)
+        // Sanitize selected values when options list or mode changes (remove deleted options, enforce single)
         React.useEffect(() => {
             const optionValues = new Set(options.map((o) => o.value));
             const current = isControlled ? (value || []) : internalSelected;
-            const filtered = current.filter((v) => optionValues.has(v));
+            let filtered = current.filter((v) => optionValues.has(v));
+            if (single && filtered.length > 1) {
+                // keep only the last chosen value in single mode
+                filtered = [filtered[filtered.length - 1]];
+            }
             if (filtered.length !== current.length) {
                 if (isControlled) {
                     onValueChange(filtered);
@@ -176,13 +186,16 @@ export const MultiSelect = React.forwardRef<
                     onValueChange(filtered);
                 }
             }
-        }, [options, value, internalSelected, isControlled, onValueChange]);
+        }, [options, value, internalSelected, isControlled, onValueChange, single]);
 
         const selectedValues = isControlled ? (value || []) : internalSelected;
+        const effectiveMaxCount = single ? 1 : maxCount;
 
         const applyNewValues = (newVals: string[]) => {
-            if (!isControlled) setInternalSelected(newVals);
-            onValueChange(newVals);
+            // Enforce single mode
+            const next = single ? (newVals.length ? [newVals[newVals.length - 1]] : []) : newVals;
+            if (!isControlled) setInternalSelected(next);
+            onValueChange(next);
         };
 
         const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -195,10 +208,17 @@ export const MultiSelect = React.forwardRef<
         };
 
         const toggleOption = (option: string) => {
-            const newSelectedValues = selectedValues.includes(option)
-                ? selectedValues.filter((v) => v !== option)
-                : [...selectedValues, option];
-            applyNewValues(newSelectedValues);
+            if (single) {
+                const newVals = selectedValues.includes(option) ? [] : [option];
+                applyNewValues(newVals);
+                // Close on select in single mode for faster UX
+                setIsPopoverOpen(false);
+            } else {
+                const newSelectedValues = selectedValues.includes(option)
+                    ? selectedValues.filter((v) => v !== option)
+                    : [...selectedValues, option];
+                applyNewValues(newSelectedValues);
+            }
         };
 
         const handleClear = () => {
@@ -206,11 +226,12 @@ export const MultiSelect = React.forwardRef<
         };
 
         const clearExtraOptions = () => {
-            const newSelectedValues = selectedValues.slice(0, maxCount);
+            const newSelectedValues = selectedValues.slice(0, effectiveMaxCount);
             applyNewValues(newSelectedValues);
         };
 
         const toggleAll = () => {
+            if (single) return; // no-op in single mode
             if (selectedValues.length === options.length) {
                 handleClear();
             } else {
@@ -238,7 +259,7 @@ export const MultiSelect = React.forwardRef<
                         {selectedValues.length > 0 ? (
                             <div className="flex justify-between items-center w-full">
                                 <div className="flex flex-wrap items-center">
-                                    {selectedValues.slice(0, maxCount).map((val) => {
+                                    {selectedValues.slice(0, effectiveMaxCount).map((val) => {
                                         const option = options.find((o) => o.value === val);
                                         const Icon = option?.icon;
                                         return (
@@ -252,17 +273,17 @@ export const MultiSelect = React.forwardRef<
                                             >
                                                 {Icon && <Icon className="h-4 w-4 mr-2" />}
                                                 {option?.label}
-                                                <XCircle
+                                                {/* <XCircle
                                                     className="ml-2 h-4 w-4 cursor-pointer"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         toggleOption(val);
                                                     }}
-                                                />
+                                                /> */}
                                             </Badge>
                                         );
                                     })}
-                                    {selectedValues.length > maxCount && (
+                                    {selectedValues.length > effectiveMaxCount && (
                                         <Badge
                                             className={cn(
                                                 "bg-transparent text-foreground hover:bg-transparent",
@@ -271,7 +292,7 @@ export const MultiSelect = React.forwardRef<
                                             )}
                                             style={{ animationDuration: `${animation}s` }}
                                         >
-                                            {`+ ${selectedValues.length - maxCount} more`}
+                                            {`+ ${selectedValues.length - effectiveMaxCount} more`}
                                             <XCircle
                                                 className="ml-2 h-4 w-4 cursor-pointer"
                                                 onClick={(e) => {
@@ -320,22 +341,24 @@ export const MultiSelect = React.forwardRef<
                         <CommandList>
                             <CommandEmpty>No results found.</CommandEmpty>
                             <CommandGroup>
-                                <CommandItem
-                                    key="all"
-                                    onSelect={toggleAll}
-                                    className="cursor-pointer"
-                                >
-                                    <div
-                                        className={cn(
-                                            "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                            selectedValues.length === options.length
-                                                ? "bg-primary text-primary-foreground"
-                                                : "opacity-50 [&_svg]:invisible"
-                                        )}>
-                                        <CheckIcon className="h-4 w-4" />
-                                    </div>
-                                    <span>(Select All)</span>
-                                </CommandItem>
+                                {!single && (
+                                    <CommandItem
+                                        // key="all"
+                                        onSelect={toggleAll}
+                                        className="cursor-pointer"
+                                    >
+                                        <div
+                                            className={cn(
+                                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                                selectedValues.length === options.length
+                                                    ? "bg-primary text-primary-foreground"
+                                                    : "opacity-50 [&_svg]:invisible"
+                                            )}>
+                                            <CheckIcon className="h-4 w-4" />
+                                        </div>
+                                        <span>(Select All)</span>
+                                    </CommandItem>
+                                )}
                                 {options.map((o) => {
                                     const isSelected = selectedValues.includes(o.value);
                                     return (
