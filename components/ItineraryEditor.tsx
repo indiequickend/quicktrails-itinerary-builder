@@ -6,25 +6,24 @@ import { ItineraryTemplate, Destination, Activity, Hotel } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Query, Permission, Role, ID } from 'appwrite';
 import { useSettings } from '@/contexts/SettingsContext';
-// import ReactQuill from 'react-quill';
 import dynamic from 'next/dynamic';
 const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
 import 'react-quill/dist/quill.snow.css';
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
-type DayItemType = 'Activity' | 'Stay'; //| 'Transfer' | 'Meal' |  | 'Note';
+type DayItemType = 'Activity' | 'Stay';
 
 interface DayItem {
     id: string;
     type: DayItemType;
     title: string;
     description?: string;
-    refActivity?: string[];   // multiple activity IDs
-    refHotel?: string[];      // multiple hotel IDs
+    refActivity?: string[];
+    refHotel?: string[];
 }
 interface DayPlan {
     planId?: string;
@@ -37,9 +36,10 @@ interface DayPlan {
 type ItineraryDoc = ItineraryTemplate & {
     days?: DayPlan[];
     $id?: string;
-    inclusionHtml?: string;   // per-itinerary editable copy
-    exclusionHtml?: string;   // per-itinerary editable copy
-    termsHtml?: string;       // per-itinerary editable copy
+    bannerUrl?: string;
+    inclusionHtml?: string;
+    exclusionHtml?: string;
+    termsHtml?: string;
 };
 
 type Props = {
@@ -59,31 +59,24 @@ export default function ItineraryEditor({ itineraryId }: Props) {
     const [exporting, setExporting] = useState(false);
 
     // Collections
-    const col = '682a2acc002334b9bd78'; // itineraries
-    const colDest = '682a29f4002ba23bf3fe'; // destinations
-    const colSeg = '682a2aad001626a3c90a'; // price segments
-    const colAct = '682a299f0013be805f72'; // activities
-    const colHotel = '682a291600390adfbf80'; // hotels
-    const colDayPlan = 'days'; // dayPlans (collection id)
-    const colDayItem = 'day_wise_items'; // dayItems (collection id)
-
+    const col = '682a2acc002334b9bd78';
+    const colDest = '682a29f4002ba23bf3fe';
+    const colSeg = '682a2aad001626a3c90a';
+    const colAct = '682a299f0013be805f72';
+    const colHotel = '682a291600390adfbf80';
+    const colDayPlan = 'days';
+    const colDayItem = 'day_wise_items';
 
     const [dests, setDests] = useState<Destination[]>([]);
     const [destOptions, setDestOptions] = useState<DestinationOption[]>([]);
     const [segs, setSegs] = useState<any[]>([]);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [hotels, setHotels] = useState<Hotel[]>([]);
-    // const destOptions = useMemo(() => dests.map(d => ({ label: d.name, value: d.$id })), [dests]);
-    /* const segOptions = useMemo(() => segs.map(s => ({ label: s.name, value: s.$id })), [segs]);
-    const actOptions = useMemo(() => activities.map(a => ({ label: a.name, value: a.$id })), [activities]);
-    const hotelOptions = useMemo(() => hotels.map(h => ({ label: h.name, value: h.$id })), [hotels]); */
 
     useEffect(() => {
-        // Transform activities for multi-select
         const options = dests.map(d => ({ label: d.name, value: d.$id }));
         setDestOptions(options);
-    }, [dests])
-
+    }, [dests]);
 
     const [editorIt, setEditorIt] = useState<ItineraryDoc>({
         title: '',
@@ -91,9 +84,10 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         destinationIds: [],
         priceSegmentIds: [],
         days: [],
-        inclusionHtml: '',   // init
-        exclusionHtml: '',   // init
-        termsHtml: '',       // init
+        bannerUrl: '',
+        inclusionHtml: '',
+        exclusionHtml: '',
+        termsHtml: '',
     });
     const [originalGraph, setOriginalGraph] = useState<{ days: DayPlan[] }>({ days: [] });
     const [saving, setSaving] = useState(false);
@@ -101,10 +95,13 @@ export default function ItineraryEditor({ itineraryId }: Props) {
     const [inclusionHtmlLocal, setInclusionHtmlLocal] = useState('');
     const [exclusionHtmlLocal, setExclusionHtmlLocal] = useState('');
     const [termsHtmlLocal, setTermsHtmlLocal] = useState('');
-    const [editorHydrated, setEditorHydrated] = useState(false); // mount Quill only after DB/template load
+    const [editorHydrated, setEditorHydrated] = useState(false);
 
+    const [bannerOpen, setBannerOpen] = useState(false);
+    const [bannerSearch, setBannerSearch] = useState('');
+    const [bannerResults, setBannerResults] = useState<any[]>([]);
+    const [bannerLoading, setBannerLoading] = useState(false);
 
-    // Stable toolbar to avoid re-mounts
     const quillModules = useMemo(
         () => ({
             toolbar: [
@@ -130,33 +127,45 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         }));
     }, [destOptions]);
 
-
     useEffect(() => {
         if (editorHydrated) return;
-        if (!editorIt.$id && itineraryId) return; // wait until loaded for existing doc
+        if (!editorIt.$id && itineraryId) return;
         setInclusionHtmlLocal(editorIt.inclusionHtml || '');
         setExclusionHtmlLocal(editorIt.exclusionHtml || '');
         setTermsHtmlLocal(editorIt.termsHtml || '');
         setEditorHydrated(true);
     }, [editorIt.$id, editorIt.inclusionHtml, editorIt.exclusionHtml, editorIt.termsHtml, editorHydrated, itineraryId]);
 
-    // Reset hydration when switching itineraries
     useEffect(() => {
         setEditorHydrated(false);
     }, [itineraryId]);
 
-    const relIds = (rel: any): string[] =>
-        Array.isArray(rel) ? (rel.map((r) => (typeof r === 'string' ? r : r?.$id)).filter(Boolean) as string[]) : [];
-
-    const toIdArray = (v: any): string[] => {
-        if (!v) return [];
-        if (Array.isArray(v)) {
-            return v.map(x => (typeof x === 'string' ? x : (x && x.$id) || '')).filter(Boolean);
+    const searchPexels = async () => {
+        if (!bannerSearch.trim()) return;
+        setBannerLoading(true);
+        setBannerResults([]);
+        try {
+            const key = process.env.NEXT_PUBLIC_PEXELS_API_KEY;
+            if (!key) {
+                console.error('Missing NEXT_PUBLIC_PEXELS_API_KEY');
+                setBannerLoading(false);
+                return;
+            }
+            const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(bannerSearch.trim())}&orientation=landscape&per_page=24`, {
+                headers: { Authorization: key }
+            });
+            const data = await res.json();
+            setBannerResults(Array.isArray(data.photos) ? data.photos : []);
+        } catch (e) {
+            console.error('Pexels search failed', e);
+        } finally {
+            setBannerLoading(false);
         }
-        // legacy single value support
-        if (typeof v === 'string') return [v];
-        if (typeof v === 'object' && '$id' in v) return [v.$id];
-        return [];
+    };
+
+    const selectBanner = (url: string) => {
+        setEditorIt(prev => ({ ...prev, bannerUrl: url }));
+        setBannerOpen(false);
     };
 
     const loadRefs = async () => {
@@ -170,6 +179,20 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         setSegs(sRes.documents);
         setActivities(aRes.documents as Activity[]);
         setHotels(hRes.documents as Hotel[]);
+    };
+
+    const relIds = (rel: any): string[] =>
+        Array.isArray(rel) ? (rel.map((r) => (typeof r === 'string' ? r : r?.$id)).filter(Boolean) as string[]) : [];
+
+    const toIdArray = (v: any): string[] => {
+        if (!v) return [];
+        if (Array.isArray(v)) {
+            return v.map(x => (typeof x === 'string' ? x : (x && x.$id) || '')).filter(Boolean);
+        }
+        // legacy single value support
+        if (typeof v === 'string') return [v];
+        if (typeof v === 'object' && '$id' in v) return [v.$id];
+        return [];
     };
 
     const fetchItineraryGraph = async (id: string) => {
@@ -232,7 +255,8 @@ export default function ItineraryEditor({ itineraryId }: Props) {
             destinationIds: itDoc.destinationIds || [],
             priceSegmentIds: itDoc.priceSegmentIds || [],
             days,
-            inclusionHtml: itDoc.inclusionHtml ?? settings?.inclusionTemplateHtml ?? '',   // fallback to template if empty
+            bannerUrl: itDoc.bannerUrl || '',
+            inclusionHtml: itDoc.inclusionHtml ?? settings?.inclusionTemplateHtml ?? '',
             exclusionHtml: itDoc.exclusionHtml ?? settings?.exclusionTemplateHtml ?? '',
             termsHtml: itDoc.termsHtml ?? settings?.termsTemplateHtml ?? '',
         } as any);
@@ -242,22 +266,16 @@ export default function ItineraryEditor({ itineraryId }: Props) {
 
     useEffect(() => {
         (async () => {
-            await loadRefs(); // ensure activities & hotels loaded first
+            await loadRefs();
             if (itineraryId) {
                 await fetchItineraryGraph(itineraryId);
             }
         })().catch(console.error);
     }, [itineraryId]);
 
-    // Prefill from Settings templates on "new" itineraries (does not mutate templates)
     useEffect(() => {
         if (!settings) return;
-        /* setEditorIt(prev => ({
-            ...prev,
-            inclusionHtml: prev.inclusionHtml ?? (settings.inclusionTemplateHtml || prev.inclusionHtml || ''),
-            exclusionHtml: prev.exclusionHtml ?? (settings.exclusionTemplateHtml || prev.exclusionHtml || ''),
-            termsHtml: prev.termsHtml ?? (settings.termsTemplateHtml || prev.termsHtml || ''),
-        })); */
+        // console.log('settings', settings);
 
         setEditorIt(prev => ({
             ...prev,
@@ -267,89 +285,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         }));
     }, [settings]);
 
-    // Editor ops
-    const addDay = () => {
-        setEditorIt((prev) => ({
-            ...prev,
-            days: [
-                ...(prev.days || []),
-                { planId: undefined, dayNumber: (prev.days?.length || 0) + 1, title: '', summary: '', date: '', items: [] },
-            ],
-        }));
-    };
-    const removeDay = (i: number) => {
-        setEditorIt((prev) => {
-            const days = [...(prev.days || [])];
-            days.splice(i, 1);
-            const renum = days.map((d, idx) => ({ ...d, dayNumber: idx + 1 }));
-            return { ...prev, days: renum };
-        });
-    };
-    const updateDayField = (idx: number, field: keyof DayPlan, value: string) => {
-        setEditorIt((prev) => {
-            const days = [...(prev.days || [])];
-            days[idx] = { ...days[idx], [field]: value };
-            return { ...prev, days };
-        });
-    };
-    const addItem = (dayIdx: number) => {
-        setEditorIt((prev) => {
-            const days = [...(prev.days || [])];
-            const items = [...(days[dayIdx].items || [])];
-            items.push({
-                id: 'local-' + crypto.randomUUID(),
-                type: 'Activity',
-                title: '',
-                refActivity: [],
-                refHotel: [],
-                description: '',
-            });
-            days[dayIdx] = { ...days[dayIdx], items };
-            return { ...prev, days };
-        });
-    };
-    const removeItem = (dayIdx: number, itemId: string) => {
-        setEditorIt((prev) => {
-            const days = [...(prev.days || [])];
-            days[dayIdx] = { ...days[dayIdx], items: days[dayIdx].items.filter((i) => i.id !== itemId) };
-            return { ...prev, days };
-        });
-    };
-    const updateItemField = <K extends keyof DayItem>(dayIdx: number, itemId: string, field: K, value: DayItem[K]) => {
-        setEditorIt((prev) => {
-            const days = [...(prev.days || [])];
-            const items = [...(days[dayIdx].items || [])];
-            const idx = items.findIndex((i) => i.id === itemId);
-            if (idx !== -1) {
-                items[idx] = { ...items[idx], [field]: value };
-                if (field === 'type') {
-                    if (value === 'Activity') {
-                        items[idx].refHotel = [];
-                        items[idx].title = '';
-                        items[idx].description = '';
-                    } else if (value === 'Stay') {
-                        items[idx].refActivity = [];
-                        items[idx].title = '';
-                        items[idx].description = '';
-                    } else {
-                        items[idx].refActivity = [];
-                        items[idx].refHotel = [];
-                    }
-                }
-            }
-            days[dayIdx] = { ...days[dayIdx], items };
-            return { ...prev, days };
-        });
-    };
-
-    const generateSafeAppwriteId = () => {
-        const ts = Date.now().toString(36);          // timestamp, unique per ms
-        const rand = Math.random().toString(36)
-            .substring(2, 10);                         // 8 random chars
-        return ts + rand;
-    }
-
-    // Partial graph update (diff-based)
     const updateItineraryGraphPartial = async (id: string) => {
         const originalDayMap: Record<string, DayPlan> = {};
         originalGraph.days.forEach((d) => {
@@ -511,7 +446,8 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                 description: editorIt.description,
                 destinationIds: editorIt.destinationIds || [],
                 priceSegmentIds: editorIt.priceSegmentIds || [],
-                inclusionHtml: editorIt.inclusionHtml || '',  // save per-itinerary overrides
+                bannerUrl: editorIt.bannerUrl || '',
+                inclusionHtml: editorIt.inclusionHtml || '',
                 exclusionHtml: editorIt.exclusionHtml || '',
                 termsHtml: editorIt.termsHtml || '',
             };
@@ -519,10 +455,9 @@ export default function ItineraryEditor({ itineraryId }: Props) {
 
             await updateItineraryGraphPartial(id);
 
-            router.push('/itineraries'); // or '/itineraries' if you have a listing path
+            router.push('/itineraries');
         } catch (e) {
             console.error('Save failed', e);
-            // Consider toasting error here
         } finally {
             setSaving(false);
         }
@@ -532,9 +467,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         router.back();
     };
 
-    // Preview helpers
-    const activityName = (id?: string) => activities.find((a) => a.$id === id)?.name || 'Activity';
-    const hotelName = (id?: string) => hotels.find((h) => h.$id === id)?.name || 'Stay';
     const segNames = useMemo(
         () => (editorIt.priceSegmentIds || []).map((id) => segs.find((s) => s.$id === id)?.name || id),
         [editorIt.priceSegmentIds, segs]
@@ -559,6 +491,16 @@ export default function ItineraryEditor({ itineraryId }: Props) {
             return el.value;
         }
         return s;
+    };
+
+    const addDay = () => {
+        setEditorIt((prev) => ({
+            ...prev,
+            days: [
+                ...(prev.days || []),
+                { planId: undefined, dayNumber: (prev.days?.length || 0) + 1, title: '', summary: '', date: '', items: [] },
+            ],
+        }));
     };
 
     const downloadPreviewPdf = async () => {
@@ -731,46 +673,54 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         }
     };
 
-
     return (
         <div className="flex gap-4 h-[calc(100vh-80px)]">
-            {/* Preview 60% */}
-            <div ref={previewRef} className="preview w-3/5 overflow-y-auto border rounded bg-white">
+            <div ref={previewRef} className="preview w-3/5 overflow-y-auto rounded bg-white">
                 <div className="relative" data-export-block>
-                    <img
-                        src="/images/itinerary-banner.jpg"
-                        alt="Itinerary header"
-                        className="w-full h-60 object-cover rounded-t"
-                    />
-                    {/* Logo overlay */}
-                    <div className="absolute top-3 left-3 bg-black/30 backdrop-blur-sm rounded-md px-2 py-1 shadow-sm">
+                    <div className='relative'>
                         <img
-                            src={settings?.logoUrl || null}
-                            alt={settings?.companyName || 'Logo'}
-                            className="h-8 w-auto"
+                            src={editorIt.bannerUrl || 'https://placehold.co/800x400?text=Loading...'}
+                            alt="Itinerary header"
+                            className="w-full object-cover rounded-t-xl"
                         />
+                        <div className="absolute bottom-0 px-6 py-1 bg-black/70 w-full flex items-center justify-between">
+                            <span className="text-white mt-2 mb-1">Ph: <strong className='tracking-wider'>{settings?.phone}</strong></span>
+                            <img
+                                src={settings?.logoUrl || '/images/logo.png'}
+                                alt={settings?.companyName || 'Logo'}
+                                className="h-10 w-auto"
+                            />
+                            <span className="text-white"><strong className='tracking-wider'>{settings?.email}</strong></span>
+                        </div>
                     </div>
+                    {/* <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-sm rounded-md px-2 py-1 shadow-sm">
+                        <img
+                            src={settings?.logoUrl || '/images/logo.png'}
+                            alt={settings?.companyName || 'Logo'}
+                            className="h-10 w-auto"
+                        />
 
-                    {/* Download button (ignored in export) */}
-                    <div className="absolute top-3 right-3 no-export">
+                    </div> */}
+                    <div className="absolute top-3 right-3 flex gap-2 no-export">
+                        <Button size="sm" variant="outline" onClick={() => setBannerOpen(true)}>Change Banner</Button>
                         <Button size="sm" variant="secondary" onClick={downloadPreviewPdf} disabled={exporting}>
                             {exporting ? 'Generating…' : 'Download PDF'}
                         </Button>
                     </div>
-
-                    <div className="p-4">
-                        <h1 className="text-2xl font-bold">{editorIt.title || ''}</h1>
-                        <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="p-4 mt-4">
+                        <h1 className="text-3xl font-bold">{editorIt.title || ''}</h1>
+                        <div className="mt-4 flex flex-wrap gap-2">
                             {destNames.map((n) => (
-                                <span key={n} className="text-xs bg-gray-100 border px-2 py-1 rounded text-blue-700">
-                                    {n}
+                                <span key={n} className="text-sm bg-orange-100 border px-2 py-1 rounded-full">
+                                    <span className="text-green-700">●</span> <strong className='tracking-wide'>{n}</strong>
                                 </span>
                             ))}
                         </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
+                        <div className="my-4 flex flex-wrap gap-2">
+
                             {segNames.map((n) => (
-                                <span key={n} className="text-xs bg-blue-50 border px-2 py-1 rounded text-blue-700">
-                                    {n}
+                                <span key={n} className="inline-block px-3 py-2 text-xs font-semibold rounded-full bg-gray-200 text-gray-700">
+                                    Pocket Pinch - <strong className='tracking-wide'>{n}</strong>
                                 </span>
                             ))}
                         </div>
@@ -786,7 +736,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 <img src="/images/calendar.png" className="w-10 h-10 object-cover rounded" alt="" />
                                 <div>
                                     <h2 className="font-semibold">Day {d.dayNumber} - {d.title}</h2>
-                                    {/* <div className="text-sm text-gray-600">{d.title}</div> */}
                                 </div>
                             </div>
                             <div className="p-3">
@@ -825,7 +774,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                             }
                                         }
 
-
                                         return (
                                             <div key={it.id} className="flex items-start gap-3 mb-4">
                                                 <img
@@ -847,7 +795,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         </div>
                     ))}
                 </div>
-                {/* put divider image here */}
                 <div className='flex items-center justify-center my-4' data-export-block>
                     <img src="/images/divider.png" className="w-50 opacity-30 " alt="Divider" />
                 </div>
@@ -864,16 +811,13 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         <div className="p-3 text-sm" dangerouslySetInnerHTML={{ __html: editorIt.inclusionHtml || '' }}>
                         </div>
                     </div>
-
                 </div>
 
-                {/* put divider image here */}
                 <div className='flex items-center justify-center my-4' data-export-block>
                     <img src="/images/divider.png" className="w-50 opacity-30 " alt="Divider" />
                 </div>
 
                 {/* Exclusions */}
-
                 <div className="p-4 space-y-4" data-export-block>
                     <div className="border rounded">
                         <div className='flex items-center gap-3 p-3 border-b'>
@@ -885,16 +829,13 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         <div className="p-3 text-sm" dangerouslySetInnerHTML={{ __html: editorIt.exclusionHtml || '' }}>
                         </div>
                     </div>
-
                 </div>
 
-                {/* put divider image here */}
                 <div className='flex items-center justify-center my-4' data-export-block>
                     <img src="/images/divider.png" className="w-50 opacity-30 " alt="Divider" />
                 </div>
 
                 {/* Terms & Conditions */}
-
                 <div className="p-4 space-y-4" data-export-block>
                     <div className="border rounded">
                         <div className='flex items-center gap-3 p-3 border-b'>
@@ -906,16 +847,13 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         <div className="p-3 text-sm" dangerouslySetInnerHTML={{ __html: editorIt.termsHtml || '' }}>
                         </div>
                     </div>
-
                 </div>
 
-                {/* put divider image here */}
                 <div className='flex items-center justify-center my-4' data-export-block>
                     <img src="/images/end-divider.png" className="w-sm opacity-30 " alt="Divider" />
                 </div>
             </div>
 
-            {/* Editor 40% */}
             <div className="w-2/5 overflow-y-auto border rounded bg-white p-4">
                 <div className="sticky top-0 bg-white z-10 p-3 border rounded-lg flex gap-2 justify-end">
                     <Button variant="outline" onClick={cancel}>Cancel</Button>
@@ -936,12 +874,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
 
                     <div className="grid grid-cols-4 items-start gap-3">
                         <Label className="text-right pt-2">Description <small><i>(Max 2000 Characters)</i></small></Label>
-                        {/* <textarea
-                            className="col-span-3 min-h-[90px] border rounded p-2"
-                            value={editorIt.description}
-                            onChange={(e) => setEditorIt({ ...editorIt, description: e.target.value })}
-                            placeholder="High-level itinerary overview"
-                        /> */}
                         <div className="col-span-3">
                             {editorHydrated ? (
                                 <ReactQuill
@@ -955,8 +887,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                             ) : (
                                 <div className="text-xs text-muted-foreground">Loading editor…</div>
                             )}
-
-
                         </div>
                     </div>
 
@@ -1008,7 +938,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         </div>
                     </div>
 
-                    {/* Days editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between">
                             <h3 className="font-medium">Day-wise Plan</h3>
@@ -1038,14 +967,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                 <Label className="text-sm">Title</Label>
                                                 <Input value={day.title || ''} onChange={(e) => updateDayField(dayIdx, 'title', e.target.value)} />
                                             </div>
-                                            {/* <div>
-                                                <Label className="text-sm">Date (optional)</Label>
-                                                <Input
-                                                    type="date"
-                                                    value={day.date || ''}
-                                                    onChange={(e) => updateDayField(dayIdx, 'date', e.target.value)}
-                                                />
-                                            </div> */}
                                             <div className="md:col-span-3">
                                                 <Label className="text-sm">Summary <small><i>(Max 1000 Characters)</i></small></Label>
                                                 <div>
@@ -1061,13 +982,10 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                     ) : (
                                                         <div className="text-xs text-muted-foreground">Loading editor…</div>
                                                     )}
-
-
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Items */}
                                         <div className="mt-4 space-y-3">
                                             {day.items.map((item) => (
                                                 <div key={item.id} className="border rounded p-3">
@@ -1087,9 +1005,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                                     <SelectGroup>
                                                                         <SelectItem value="Activity">Activity</SelectItem>
                                                                         <SelectItem value="Stay">Stay</SelectItem>
-                                                                        {/* <SelectItem value="Transfer">Transfer</SelectItem>
-                                                                        <SelectItem value="Meal">Meal</SelectItem>
-                                                                        <SelectItem value="Note">Note</SelectItem> */}
                                                                     </SelectGroup>
                                                                 </SelectContent>
                                                             </Select>
@@ -1173,8 +1088,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                                     ) : (
                                                                         <div className="text-xs text-muted-foreground">Loading editor…</div>
                                                                     )}
-
-
                                                                 </div>
                                                             </div>
                                                         )}
@@ -1206,7 +1119,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         </div>
                     </div>
 
-                    {/* Inclusions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="font-medium">Inclusions <small><i>(Max 1000 Characters)</i></small></h3>
@@ -1231,13 +1143,9 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                             ) : (
                                 <div className="text-xs text-muted-foreground">Loading editor…</div>
                             )}
-
-                            {/* <ReactQuill theme="snow" value={editorIt.inclusionHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, inclusionHtml: html })} /> */}
                         </div>
-
                     </div>
 
-                    {/* Exclusions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="font-medium">Exclusions <small><i>(Max 1000 Characters)</i></small></h3>
@@ -1262,12 +1170,9 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                             ) : (
                                 <div className="text-xs text-muted-foreground">Loading editor…</div>
                             )}
-
-                            {/* <ReactQuill theme="snow" value={editorIt.exclusionHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, exclusionHtml: html })} /> */}
                         </div>
                     </div>
 
-                    {/* Terms & Conditions editor */}
                     <div className="border rounded-md p-3">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="font-medium">Terms & Conditions <small><i>(Max 10000 Characters)</i></small></h3>
@@ -1292,8 +1197,6 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                             ) : (
                                 <div className="text-xs text-muted-foreground">Loading editor…</div>
                             )}
-
-                            {/* <ReactQuill theme="snow" value={editorIt.termsHtml || ''} onChange={(html) => setEditorIt({ ...editorIt, termsHtml: html })} /> */}
                         </div>
                     </div>
                 </div>
@@ -1305,6 +1208,68 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                     </Button>
                 </DialogFooter>
             </div>
+
+            <Dialog open={bannerOpen} onOpenChange={setBannerOpen}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Choose Banner Image</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="flex gap-2">
+                            <Input
+                                placeholder="Keyword (e.g. mountains, beach)"
+                                value={bannerSearch}
+                                onChange={(e) => setBannerSearch(e.target.value)}
+                            />
+                            <Button onClick={searchPexels} disabled={!bannerSearch.trim() || bannerLoading}>
+                                {bannerLoading ? 'Searching…' : 'Search'}
+                            </Button>
+                        </div>
+                        <div className="max-h-[360px] overflow-y-auto border rounded p-2">
+                            {bannerLoading && <div className="text-sm">Loading photos…</div>}
+                            {!bannerLoading && bannerResults.length === 0 && <div className="text-sm text-muted-foreground">No results.</div>}
+                            <div className="grid grid-cols-3 gap-3">
+                                {bannerResults.map(p => {
+                                    const src = p.src?.landscape || p.src?.large || p.src?.original;
+                                    return (
+                                        <div key={p.id} className="group relative">
+                                            <img
+                                                src={src}
+                                                alt={p.alt || 'Photo'}
+                                                className="h-28 w-full object-cover rounded"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => selectBanner(src)}
+                                                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 text-white text-xs flex items-center justify-center rounded transition"
+                                            >
+                                                Use
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        {editorIt.bannerUrl && (
+                            <div className="text-xs">
+                                Current: <a href={editorIt.bannerUrl} target="_blank" rel="noreferrer" className="underline">Open</a>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setBannerOpen(false)}>Close</Button>
+                        <Button
+                            variant="destructive"
+                            onClick={() => {
+                                setEditorIt(prev => ({ ...prev, bannerUrl: '' }));
+                                setBannerOpen(false);
+                            }}
+                        >
+                            Remove Banner
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
