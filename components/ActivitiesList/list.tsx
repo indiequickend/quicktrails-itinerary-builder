@@ -33,9 +33,13 @@ export default function ActivitiesList() {
                 col,
                 [
                     Query.select(['$id', 'name']), // Only fetch ID and name for list
+                    Query.limit(500),
+                    Query.orderDesc('$createdAt'),
                 ]
             );
             setActivities(res.documents as Activity[]);
+            console.log("Loaded activities:", res.documents);
+
         } catch (error) {
             console.error("Error loading activities:", error);
         }

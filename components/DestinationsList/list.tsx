@@ -45,6 +45,8 @@ export default function DestinationsList() {
                     // Add a query parameter to select only needed fields
                     [
                         Query.select(['$id', 'name', 'activityIds']),
+                        Query.limit(500),
+                        Query.orderDesc('$createdAt'),
                     ]
                 ),
                 databases.listDocuments(APPWRITE_DATABASE_ID, colA),

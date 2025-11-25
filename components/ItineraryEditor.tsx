@@ -181,10 +181,10 @@ export default function ItineraryEditor({ itineraryId }: Props) {
 
     const loadRefs = async () => {
         const [dRes, sRes, aRes, hRes] = await Promise.all([
-            databases.listDocuments(APPWRITE_DATABASE_ID, colDest),
+            databases.listDocuments(APPWRITE_DATABASE_ID, colDest, [Query.limit(500), Query.orderDesc('$createdAt')]),
             databases.listDocuments(APPWRITE_DATABASE_ID, colSeg),
-            databases.listDocuments(APPWRITE_DATABASE_ID, colAct),
-            databases.listDocuments(APPWRITE_DATABASE_ID, colHotel),
+            databases.listDocuments(APPWRITE_DATABASE_ID, colAct, [Query.limit(500), Query.orderDesc('$createdAt')]),
+            databases.listDocuments(APPWRITE_DATABASE_ID, colHotel, [Query.limit(500), Query.orderDesc('$createdAt')]),
         ]);
         setDests(dRes.documents as Destination[]);
         setSegs(sRes.documents);

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Query } from 'appwrite';
 
 export default function HotelsList() {
     const { databases, APPWRITE_ID, APPWRITE_DATABASE_ID } = useAppwrite();
@@ -24,7 +25,7 @@ export default function HotelsList() {
     const col = '682a291600390adfbf80'; //hotels
 
     const load = async () => {
-        const res = await databases.listDocuments(APPWRITE_DATABASE_ID, col);
+        const res = await databases.listDocuments(APPWRITE_DATABASE_ID, col, [Query.limit(500), Query.orderDesc('$createdAt')]);
         setHotels(res.documents as Hotel[]);
     };
 

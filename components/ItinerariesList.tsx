@@ -38,9 +38,9 @@ export default function ItinerariesList() {
         setLoading(true);
         try {
             const [itRes, dRes, sRes] = await Promise.all([
-                databases.listDocuments(APPWRITE_DATABASE_ID, col, [Query.limit(200)]),
+                databases.listDocuments(APPWRITE_DATABASE_ID, col, [Query.limit(500), Query.orderDesc('$createdAt')]),
                 databases.listDocuments(APPWRITE_DATABASE_ID, colDest, [Query.limit(500)]),
-                databases.listDocuments(APPWRITE_DATABASE_ID, colSeg, [Query.limit(500)]),
+                databases.listDocuments(APPWRITE_DATABASE_ID, colSeg),
             ]);
             setIts(itRes.documents as unknown as ItineraryRow[]);
             setDests(dRes.documents as Destination[]);
