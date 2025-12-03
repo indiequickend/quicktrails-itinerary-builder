@@ -107,6 +107,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
     const [exclusionHtmlLocal, setExclusionHtmlLocal] = useState('');
     const [termsHtmlLocal, setTermsHtmlLocal] = useState('');
     const [editorHydrated, setEditorHydrated] = useState(false);
+    const [priceLocal, setPriceLocal] = useState('');
 
     const [bannerOpen, setBannerOpen] = useState(false);
     const [bannerSearch, setBannerSearch] = useState('');
@@ -799,10 +800,23 @@ export default function ItineraryEditor({ itineraryId }: Props) {
 
                             {segNames.map((n) => (
                                 <span key={n} className="inline-block px-3 py-2 text-xs font-semibold rounded-full bg-gray-200 text-gray-700">
-                                    Pocket Pinch - <strong className='tracking-wide'>{n}</strong>
+                                    <strong className='tracking-wide'>Pocket Pinch - </strong>{n}
                                 </span>
                             ))}
                         </div>
+                        {
+                            priceLocal !== '' && (
+                                <div className="my-4 flex flex-wrap gap-2">
+
+                                    <span className="inline-block px-3 py-2 text-xs font-semibold rounded-full bg-orange-100 text-gray-700">
+                                        <strong className='tracking-wide'>Price - </strong>{priceLocal}
+                                    </span>
+
+                                </div>
+
+                            )
+                        }
+
                         {editorIt.description && <p className="mt-3 text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: editorIt.description }} />}
                     </div>
                 </div>
@@ -1004,29 +1018,17 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 single
                             />
 
-                            {/* <Select
-                                value={editorIt.priceSegmentIds.length > 0 ? editorIt.priceSegmentIds[0] : ''}
-                                onValueChange={(value) =>
-                                    setEditorIt({
-                                        ...editorIt,
-                                        priceSegmentIds: [value],
-                                    })
-                                }
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectGroup>
-                                        {segs.map((s) => (
-                                            <SelectItem key={s.$id} value={s.$id}>
-                                                {s.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select> */}
+
                         </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 items-center gap-3">
+                        <Label className="text-right">Price</Label>
+                        <Input
+                            className="col-span-3"
+                            value={priceLocal}
+                            onChange={(e) => setPriceLocal(e.target.value)}
+                        />
                     </div>
 
                     <div className="border rounded-md p-3">
