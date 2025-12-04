@@ -791,7 +791,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         <h1 className="text-3xl font-bold">{editorIt.title || ''}</h1>
                         <div className="mt-4 flex flex-wrap gap-2">
                             {destNames.map((n) => (
-                                <span key={n} className="text-sm bg-orange-100 border px-2 py-1 rounded-full">
+                                <span key={n} className=" bg-orange-100 border px-2 py-1 rounded-full">
                                     <span className="text-green-700">●</span> <strong className='tracking-wide'>{n}</strong>
                                 </span>
                             ))}
@@ -799,7 +799,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                         <div className="my-4 flex flex-wrap gap-2">
 
                             {segNames.map((n) => (
-                                <span key={n} className="inline-block px-3 py-2 text-xs font-semibold rounded-full bg-gray-200 text-gray-700">
+                                <span key={n} className="inline-block px-3 py-2 font-semibold rounded-full bg-gray-200 text-gray-700">
                                     <strong className='tracking-wide'>Pocket Pinch - </strong>{n}
                                 </span>
                             ))}
@@ -808,7 +808,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                             priceLocal !== '' && (
                                 <div className="my-4 flex flex-wrap gap-2">
 
-                                    <span className="inline-block px-3 py-2 text-xs font-semibold rounded-full bg-orange-100 text-gray-700">
+                                    <span className="inline-block px-3 py-2 font-semibold rounded-full bg-orange-100 text-gray-700">
                                         <strong className='tracking-wide'>Price - </strong>{priceLocal}
                                     </span>
 
@@ -817,7 +817,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                             )
                         }
 
-                        {editorIt.description && <p className="mt-3 text-sm text-gray-700" dangerouslySetInnerHTML={{ __html: editorIt.description }} />}
+                        {editorIt.description && <p className="mt-3 text-gray-700" dangerouslySetInnerHTML={{ __html: editorIt.description }} />}
                     </div>
                 </div>
 
@@ -832,7 +832,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 </div>
                             </div>
                             <div className="p-3">
-                                {d.summary && <div className="mb-2 text-sm" dangerouslySetInnerHTML={{ __html: d.summary }} />}
+                                {d.summary && <div className="mb-2 " dangerouslySetInnerHTML={{ __html: d.summary }} />}
                                 <div className="space-y-2 mt-4">
                                     {(d.items || []).map((it) => {
                                         const activityObjs = it.type === 'Activity'
@@ -875,8 +875,8 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                                     alt={label}
                                                 />
                                                 <div>
-                                                    <div className="text-sm font-medium font-semibold">{label}</div>
-                                                    <div className="text-xs text-gray-600 whitespace-pre-wrap">
+                                                    <div className="font-medium font-semibold">{label}</div>
+                                                    <div className="text-sm text-gray-600 whitespace-pre-wrap">
                                                         {htmlToPlainText(sub)}
                                                     </div>
                                                 </div>
@@ -901,7 +901,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 <h2 className="font-semibold">Inclusions</h2>
                             </div>
                         </div>
-                        <div className="p-3 text-sm" dangerouslySetInnerHTML={{ __html: editorIt.inclusionHtml || '' }}>
+                        <div className="p-3" dangerouslySetInnerHTML={{ __html: editorIt.inclusionHtml || '' }}>
                         </div>
                     </div>
                 </div>
@@ -919,7 +919,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 <h2 className="font-semibold">Exclusions</h2>
                             </div>
                         </div>
-                        <div className="p-3 text-sm" dangerouslySetInnerHTML={{ __html: editorIt.exclusionHtml || '' }}>
+                        <div className="p-3 " dangerouslySetInnerHTML={{ __html: editorIt.exclusionHtml || '' }}>
                         </div>
                     </div>
                 </div>
@@ -937,7 +937,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                 <h2 className="font-semibold">Terms & Conditions</h2>
                             </div>
                         </div>
-                        <div className="p-3 text-sm" dangerouslySetInnerHTML={{ __html: editorIt.termsHtml || '' }}>
+                        <div className="p-3" dangerouslySetInnerHTML={{ __html: editorIt.termsHtml || '' }}>
                         </div>
                     </div>
                 </div>
