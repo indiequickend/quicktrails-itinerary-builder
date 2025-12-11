@@ -5,6 +5,10 @@ import { useAppwrite } from '@/contexts/AppwriteContext';
 import { ItineraryTemplate, Destination } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Query } from 'appwrite';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { ID } from 'appwrite';
+import { useRouter } from 'next/router';
 
 type ItineraryRow = ItineraryTemplate & { $id: string; days?: string[] };
 
@@ -22,6 +26,10 @@ export default function ItinerariesList() {
     const [dests, setDests] = useState<Destination[]>([]);
     const [segs, setSegs] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const [createOpen, setCreateOpen] = useState(false);
+    const [newTitle, setNewTitle] = useState('');
+    const [creating, setCreating] = useState(false);
+    const router = useRouter?.() || null; // if using next/router; add import if missing
 
     const relIds = (rel: any): string[] =>
         Array.isArray(rel) ? (rel.map((r) => (typeof r === 'string' ? r : r?.$id)).filter(Boolean) as string[]) : [];
@@ -30,9 +38,9 @@ export default function ItinerariesList() {
         setLoading(true);
         try {
             const [itRes, dRes, sRes] = await Promise.all([
-                databases.listDocuments(APPWRITE_DATABASE_ID, col, [Query.limit(200)]),
+                databases.listDocuments(APPWRITE_DATABASE_ID, col, [Query.limit(500), Query.orderDesc('$createdAt')]),
                 databases.listDocuments(APPWRITE_DATABASE_ID, colDest, [Query.limit(500)]),
-                databases.listDocuments(APPWRITE_DATABASE_ID, colSeg, [Query.limit(500)]),
+                databases.listDocuments(APPWRITE_DATABASE_ID, colSeg),
             ]);
             setIts(itRes.documents as unknown as ItineraryRow[]);
             setDests(dRes.documents as Destination[]);
@@ -95,6 +103,28 @@ export default function ItinerariesList() {
         }
     };
 
+    const createItinerary = async () => {
+        if (!newTitle.trim() || creating) return;
+        setCreating(true);
+        try {
+            const doc = await databases.createDocument(
+                APPWRITE_DATABASE_ID,
+                col,
+                ID.unique(),
+                { title: newTitle.trim() } // bare doc (other fields can be filled later)
+            );
+            setCreateOpen(false);
+            setNewTitle('');
+            // Navigate directly to edit page
+            router && router.push(`/itineraries/${doc.$id}/edit`);
+        } catch (e) {
+            console.error('Create failed', e);
+            alert('Failed to create itinerary');
+        } finally {
+            setCreating(false);
+        }
+    };
+
     const destName = (id: string) => dests.find((d) => d.$id === id)?.name || id;
     const segName = (id: string) => segs.find((s: any) => s.$id === id)?.name || id;
 
@@ -105,11 +135,37 @@ export default function ItinerariesList() {
                     <Link href="/price-segments">
                         <Button variant="outline">Manage Price Segments</Button>
                     </Link>
-                    <Link href="/itineraries/new">
-                        <Button>Create Itinerary</Button>
-                    </Link>
+                    <Button onClick={() => setCreateOpen(true)}>Create Itinerary</Button>
                 </div>
             </div>
+
+            {/* Creation Dialog */}
+            <Dialog open={createOpen} onOpenChange={(o) => !creating && setCreateOpen(o)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>New Itinerary</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-sm font-medium">Title</label>
+                            <Input
+                                autoFocus
+                                value={newTitle}
+                                onChange={(e) => setNewTitle(e.target.value)}
+                                placeholder="Enter itinerary title"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
+                            Cancel
+                        </Button>
+                        <Button onClick={createItinerary} disabled={!newTitle.trim() || creating}>
+                            {creating ? 'Creating…' : 'Create'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <div className="rounded border bg-white">
                 <table className="min-w-full">

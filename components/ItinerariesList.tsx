@@ -125,6 +125,119 @@ export default function ItinerariesList() {
         }
     };
 
+    const duplicateItinerary = async (sourceId: string) => {
+        if (!sourceId) return;
+        setLoading(true);
+        try {
+            // 1) Load source itinerary
+            const src: any = await databases.getDocument(APPWRITE_DATABASE_ID, col, sourceId);
+            const dayPlanIds = relIds(src.days);
+
+            // 2) Load all day plans in order
+            let plans: any[] = [];
+            if (dayPlanIds.length) {
+                const res = await databases.listDocuments(APPWRITE_DATABASE_ID, colDayPlan, [
+                    Query.equal('$id', dayPlanIds),
+                    Query.limit(1000),
+                ]);
+                const byId: Record<string, any> = {};
+                (res.documents as any[]).forEach((p) => (byId[p.$id] = p));
+                plans = dayPlanIds.map((id) => byId[id]).filter(Boolean);
+            }
+
+            // 3) Load items for each plan
+            const itemsByPlan: Record<string, any[]> = {};
+            for (const p of plans) {
+                const itemIds = relIds(p.items);
+                if (!itemIds.length) {
+                    itemsByPlan[p.$id] = [];
+                    continue;
+                }
+                const res = await databases.listDocuments(APPWRITE_DATABASE_ID, colDayItem, [
+                    Query.equal('$id', itemIds),
+                    Query.limit(1000),
+                ]);
+                const byId: Record<string, any> = {};
+                (res.documents as any[]).forEach((i) => (byId[i.$id] = i));
+                itemsByPlan[p.$id] = itemIds.map((id) => byId[id]).filter(Boolean);
+            }
+
+            // 4) Create new itinerary (bare, with copied fields and prefixed title)
+            const newIt = await databases.createDocument(APPWRITE_DATABASE_ID, col, ID.unique(), {
+                title: `Copy of ${src.title || ''}`.trim(),
+                description: src.description || '',
+                destinationIds: src.destinationIds || [],
+                priceSegmentIds: src.priceSegmentIds || [],
+                bannerUrl: src.bannerUrl || '',
+                inclusionHtml: src.inclusionHtml || '',
+                exclusionHtml: src.exclusionHtml || '',
+                termsHtml: src.termsHtml || '',
+            });
+
+            // 5) Create cloned day plans and items
+            const newDayPlanIds: string[] = [];
+            for (let idx = 0; idx < plans.length; idx++) {
+                const p = plans[idx];
+                // Create day plan
+                const newPlan = await databases.createDocument(
+                    APPWRITE_DATABASE_ID,
+                    colDayPlan,
+                    ID.unique(),
+                    {
+                        dayNumber: p.dayNumber ?? idx + 1,
+                        date: p.date || '',
+                        title: p.title || '',
+                        summary: p.summary || '',
+                    }
+                );
+                const newItemIds: string[] = [];
+                const items = itemsByPlan[p.$id] || [];
+                // Clone items (support arrays for refs)
+                for (const it of items) {
+                    const created = await databases.createDocument(
+                        APPWRITE_DATABASE_ID,
+                        colDayItem,
+                        ID.unique(),
+                        {
+                            type: it.type,
+                            title: it.title ?? '',
+                            description: it.description ?? '',
+                            refActivity: Array.isArray(it.refActivity)
+                                ? it.refActivity
+                                : it.refActivity
+                                    ? [it.refActivity]
+                                    : [],
+                            refHotel: Array.isArray(it.refHotel)
+                                ? it.refHotel
+                                : it.refHotel
+                                    ? [it.refHotel]
+                                    : [],
+                        }
+                    );
+                    newItemIds.push(created.$id);
+                }
+                // Attach items to day plan
+                if (newItemIds.length) {
+                    await databases.updateDocument(APPWRITE_DATABASE_ID, colDayPlan, newPlan.$id, { items: newItemIds });
+                }
+                newDayPlanIds.push(newPlan.$id);
+            }
+
+            // 6) Attach day plans to new itinerary
+            if (newDayPlanIds.length) {
+                await databases.updateDocument(APPWRITE_DATABASE_ID, col, newIt.$id, { days: newDayPlanIds });
+            }
+
+            // 7) Refresh list
+            await loadAll();
+        } catch (e) {
+            console.error('Duplicate failed', e);
+            alert('Failed to duplicate itinerary.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const destName = (id: string) => dests.find((d) => d.$id === id)?.name || id;
     const segName = (id: string) => segs.find((s: any) => s.$id === id)?.name || id;
 
@@ -207,6 +320,9 @@ export default function ItinerariesList() {
                                             <Link href={`/itineraries/${it.$id}/edit`}>
                                                 <Button variant="secondary">Edit</Button>
                                             </Link>
+                                            <Button variant="outline" onClick={() => duplicateItinerary(it.$id)}>
+                                                Duplicate
+                                            </Button>
                                             <Button
                                                 variant="destructive"
                                                 onClick={() => deleteItineraryCascade(it.$id)}
