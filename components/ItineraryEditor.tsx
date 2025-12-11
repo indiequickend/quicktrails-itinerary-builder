@@ -14,6 +14,7 @@ const ReactQuill = dynamic(() => import('react-quill'), { ssr: false });
 import 'react-quill/dist/quill.snow.css';
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { format } from 'path';
 
 type DayItemType = 'Activity' | 'Stay';
 
@@ -247,7 +248,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
         const days: DayPlan[] = plans.map((p) => ({
             planId: p.$id,
             dayNumber: p.dayNumber ?? 0,
-            date: p.date || '',
+            date: '',
             title: p.title || '',
             summary: p.summary || '',
             items: (itemsByPlanId[p.$id] || []).map((it) => ({
@@ -340,7 +341,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                     ID.unique(),
                     {
                         dayNumber: idx + 1,
-                        date: d.date || '',
+                        // date: d.date || '',
                         title: d.title || '',
                         summary: d.summary || '',
                     },
@@ -352,13 +353,13 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                 const orig = originalDayMap[planId!];
                 const dayChanged =
                     orig.dayNumber !== idx + 1 ||
-                    (orig.date || '') !== (d.date || '') ||
+                    // (orig.date || '') !== (d.date || '') ||
                     (orig.title || '') !== (d.title || '') ||
                     (orig.summary || '') !== (d.summary || '');
                 if (dayChanged) {
                     await databases.updateDocument(APPWRITE_DATABASE_ID, colDayPlan, planId!, {
                         dayNumber: idx + 1,
-                        date: d.date || '',
+                        // date: d.date || '',
                         title: d.title || '',
                         summary: d.summary || '',
                     });
@@ -828,7 +829,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                             <div className="flex items-center gap-3 p-3 border-b">
                                 <img src="/images/calendar.png" className="w-10 h-10 object-cover rounded" alt="" />
                                 <div>
-                                    <h2 className="font-semibold">Day {d.dayNumber} - {d.title}</h2>
+                                    <h2 className="font-semibold">Day {d.dayNumber}{d.date ? " (" + new Date(d.date).toLocaleDateString() + ")" : ""} - {d.title}</h2>
                                 </div>
                             </div>
                             <div className="p-3">
@@ -1059,6 +1060,11 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                                             <div className='md:col-span-3'>
                                                 <Label className="text-sm">Title</Label>
                                                 <Input value={day.title || ''} onChange={(e) => updateDayField(dayIdx, 'title', e.target.value)} />
+                                            </div>
+
+                                            <div className='md:col-span-3'>
+                                                <Label className="text-sm">Date</Label>
+                                                <Input type="date" value={day.date || ''} onChange={(e) => updateDayField(dayIdx, 'date', e.target.value)} />
                                             </div>
                                             <div className="md:col-span-3">
                                                 <Label className="text-sm">Summary <small><i>(Max 1000 Characters)</i></small></Label>
