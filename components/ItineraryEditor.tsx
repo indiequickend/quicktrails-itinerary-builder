@@ -829,7 +829,7 @@ export default function ItineraryEditor({ itineraryId }: Props) {
                             <div className="flex items-center gap-3 p-3 border-b">
                                 <img src="/images/calendar.png" className="w-10 h-10 object-cover rounded" alt="" />
                                 <div>
-                                    <h2 className="font-semibold">Day {d.dayNumber}{d.date ? " (" + new Date(d.date).toLocaleDateString() + ")" : ""} - {d.title}</h2>
+                                    <h2 className="font-semibold">Day {d.dayNumber}{d.date ? " (" + new Date(d.date).toDateString() + ")" : ""} - {d.title}</h2>
                                 </div>
                             </div>
                             <div className="p-3">
